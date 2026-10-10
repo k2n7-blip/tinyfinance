@@ -192,9 +192,13 @@ export default async function Reports({
             <thead>
               <tr>
                 <th>Kostenstelle</th>
-                <th>Einnahmen brutto</th>
-                <th>Ausgaben brutto</th>
-                <th>Saldo</th>
+                <th>Journal: Einnahmen brutto</th>
+                <th>Journal: Ausgaben brutto</th>
+                <th>Journal: Saldo</th>
+                <th>Plattform: Gastzahlungen</th>
+                <th>Plattform: Gebühren inkl. USt</th>
+                <th>Plattform: Erstattungen</th>
+                <th>Plattform: erwartete Auszahlung</th>
                 <th>Arbeitskosten-Vorbereitung</th>
               </tr>
             </thead>
@@ -204,6 +208,7 @@ export default async function Reports({
                   income: 0,
                   expense: 0,
                 };
+                const platform = platformSummary.byCenter.get(c.id);
                 const labour = timeEntries
                   .filter(
                     (t) =>
@@ -233,6 +238,10 @@ export default async function Reports({
                     <td>{moneyCents(sums.income)}</td>
                     <td>{moneyCents(sums.expense)}</td>
                     <td>{moneyCents(sums.income - sums.expense)}</td>
+                    <td>{moneyCents(platform?.gross || 0)}</td>
+                    <td>{moneyCents(platform?.fees || 0)}</td>
+                    <td>{moneyCents(platform?.refunds || 0)}</td>
+                    <td>{moneyCents(platform?.payout || 0)}</td>
                     <td>
                       {timeEntries.length
                         ? moneyCents(labour)
@@ -245,8 +254,13 @@ export default async function Reports({
           </table>
         </div>
         <p className="muted">
-          Arbeitskosten = genehmigte Minuten × hinterlegte Stundenkosten / 60,
-          pro Zeitzeile auf Cent gerundet. Nicht zusätzlich als Buchung erfasst.
+          Plattformwerte zeigen nicht stornierte Aufenthalte, die den gewählten
+          Zeitraum berühren, jeweils vollständig. Erwartete Auszahlungen sind
+          keine bestätigten Bankeingänge. Journal- und Plattformwerte werden
+          nicht addiert, weil dieselben Vorgänge bereits im Journal gebucht sein
+          können. Arbeitskosten = genehmigte Minuten × hinterlegte Stundenkosten
+          / 60, pro Zeitzeile auf Cent gerundet. Nicht zusätzlich als Buchung
+          erfasst.
         </p>
       </section>
       <section className="panel">
