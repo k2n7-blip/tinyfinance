@@ -48,8 +48,3 @@ export async function currentUser() {
 
   return { client, user };
 }
-
-  } = await client.auth.getUser();
-
-  return user;
-}
