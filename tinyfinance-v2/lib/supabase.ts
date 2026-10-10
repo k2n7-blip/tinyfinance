@@ -1,9 +1,43 @@
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
-export async function db() {
-  const jar = await cookies();
-  return createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,{
-    cookies:{getAll(){return jar.getAll()},setAll(items){try{items.forEach(({name,value,options})=>jar.set(name,value,options))}catch{}}}
-  });
+
+import { cookies } from "next/headers";
+import { createServerClient } from "@supabase/ssr";
+
+export async function supabaseServer() {
+  const cookieStore = await cookies();
+
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(
+          items: {
+            name: string;
+            value: string;
+            options?: Parameters<typeof cookieStore.set>[2];
+          }[]
+        ) {
+          try {
+            items.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options);
+            });
+          } catch {
+            // Server Components können Cookies nicht immer setzen.
+          }
+        },
+      },
+    }
+  );
 }
-export async function currentUser(){const client=await db();const {data:{user}}=await client.auth.getUser();return {client,user};}
+
+export async function currentUser() {
+  const client = await supabaseServer();
+  const {
+    data: { user },
+  } = await client.auth.getUser();
+
+  return user;
+}
