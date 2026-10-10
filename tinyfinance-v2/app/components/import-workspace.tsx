@@ -10,6 +10,24 @@ export default function ImportWorkspace() {
   return (
     <section className="panel">
       <PlatformPdfImport />
+      <details>
+        <summary>TinyTeam-Schnittstelle einrichten</summary>
+        <p>
+          Der Adapter für TinyTeam 13.3.3 exportiert freigegebene,
+          abgeschlossene Monatszeiten. Mitarbeiter zuerst anlegen und ihre
+          externe TinyTeam-ID hinterlegen; Häuser beim Export ihren
+          Kostenstellennummern zuordnen. Anschließend „TinyTeam-Zeiten“ wählen
+          und die Datei prüfen/importieren.
+        </p>
+        <p>
+          Mitarbeiter-Zuordnung ist eine Referenzliste; Personalnummern und
+          Arbeitgeberkosten werden selbst gepflegt. Dies ist eine
+          Datei-Schnittstelle, keine laufende Synchronisation.
+        </p>
+        <a href="https://github.com/k2n7-blip/tinyfinance/tree/feat/finance-workflows/integrations/tinyteam">
+          Adapter und Einrichtung
+        </a>
+      </details>
       <h2>Geprüfte CSV importieren</h2>
       <p>
         Verwende die heruntergeladene Vorlage und Semikolon als Trennzeichen.

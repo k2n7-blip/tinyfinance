@@ -48,6 +48,11 @@ export async function extractDocument(
     .eq("upload_status", "ready")
     .single();
   if (error || !doc) throw new AppError(404, "Beleg nicht verfügbar.");
+  if (doc.discarded_at)
+    throw new AppError(
+      409,
+      "Beleg zuerst aus dem Papierkorb wiederherstellen.",
+    );
   if (doc.review_status === "reviewed")
     throw new AppError(
       409,

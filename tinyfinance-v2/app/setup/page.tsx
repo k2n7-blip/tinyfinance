@@ -50,7 +50,7 @@ export default async function Setup({
           <>
             <p>
               Öffne den SQL Editor deines separaten Supabase-Testprojekts. Dort
-              müssen die Migrationen 001, 003, 004 und 005–010 in dieser
+              müssen die Migrationen 001, 003, 004 und 005–013 in dieser
               Reihenfolge angewendet sein. Bereits erfolgreich angewendete
               Dateien nicht erneut ausführen. Die Beispieldatei 002 nicht
               ausführen.

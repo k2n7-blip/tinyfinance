@@ -1,20 +1,19 @@
+import { databaseError } from "@/lib/errors";
 import { pageContext } from "@/lib/access";
 import { permits } from "@/lib/permissions";
-import { databaseError } from "@/lib/errors";
 import { allRows } from "@/lib/data";
 import FinanceShell from "@/app/components/finance-shell";
 import DocumentWorkspace from "@/app/components/document-workspace";
 export const dynamic = "force-dynamic";
 export default async function Documents() {
   const a = await pageContext();
-  const { data, error, count } = await a.client
-    .from("documents")
-    .select("*", { count: "exact" })
-    .eq("organization_id", a.org)
-    .order("created_at", { ascending: false })
-    .order("id")
-    .range(0, 49);
-  if (error) databaseError(error);
+  const active = (await allRows(a.client, "documents", a.org)).sort(
+    (x, y) =>
+      String(y.created_at).localeCompare(String(x.created_at)) ||
+      String(x.id).localeCompare(String(y.id)),
+  );
+  const data = active.slice(0, 50),
+    count = active.length;
   const centers = await allRows(a.client, "cost_centers", a.org);
   const subjects = permits(a.role, "private", a.privateAccess)
     ? await allRows(a.client, "tax_subjects", a.org)

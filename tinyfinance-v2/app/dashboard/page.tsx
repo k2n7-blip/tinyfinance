@@ -17,6 +17,7 @@ export default async function Dashboard({
     org: a.org,
   });
   if (error) databaseError(error);
+  const activeDocuments = await allRows(a.client, "documents", a.org);
   const platforms = platformReport(
     await allRows(a.client, "platform_settlements", a.org),
   );
@@ -25,15 +26,10 @@ export default async function Dashboard({
     .select("name")
     .eq("id", a.org)
     .single();
-  const { data: docs, error: docsError } = await a.client
-    .from("documents")
-    .select("id,original_filename,review_status,created_at")
-    .eq("organization_id", a.org)
-    .eq("review_status", "pending")
-    .eq("upload_status", "ready")
-    .order("created_at", { ascending: false })
-    .limit(5);
-  if (docsError) databaseError(docsError);
+  const docs = activeDocuments
+    .filter((d) => d.review_status === "pending" && d.upload_status === "ready")
+    .sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)))
+    .slice(0, 5);
   return (
     <FinanceShell
       title="Überblick"
@@ -59,8 +55,15 @@ export default async function Dashboard({
       </section>
       <div className="cards">
         {[
-          ["Belege gesamt", totals?.documents, "/documents"],
-          ["Zur Prüfung", totals?.pending, "/documents"],
+          ["Belege gesamt", activeDocuments.length, "/documents"],
+          [
+            "Zur Prüfung",
+            activeDocuments.filter(
+              (d) =>
+                d.review_status === "pending" && d.upload_status === "ready",
+            ).length,
+            "/documents",
+          ],
           ["Freigegebene Buchungen", totals?.postings, "/ledger"],
           ["Offene Bankumsätze", totals?.unmatched, "/bank"],
         ].map(([label, value, href]) => (

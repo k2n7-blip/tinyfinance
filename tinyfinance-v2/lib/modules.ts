@@ -237,12 +237,13 @@ export const modules: Record<string, Module> = {
     "Privat",
     "properties",
     "private",
-    "Anlage-V-Vorbereitung; AfA beruht auf der angegebenen Bemessungsgrundlage und Rate.",
+    "Objekt mit einzelnen Nutzungseinheiten. Gemeinsame Kosten bleiben am Objekt; Einheiten separat unter Immobilien-Einheiten anlegen. Keine automatische steuerliche Kostenverteilung.",
     [
       f("name", "Objekt"),
       rel("tax_subject_id", "Steuerbereich", "tax-subjects"),
       f("address", "Adresse", "text", false),
       f("usage_type", "Nutzung", "select", true, [
+        "mixed",
         "rental",
         "private",
         "business",
@@ -252,6 +253,7 @@ export const modules: Record<string, Module> = {
       f("acquired_on", "Erwerbsdatum", "date", false),
       f("depreciable_basis", "AfA-Bemessungsgrundlage", "money", false),
       f("depreciation_rate", "AfA-Satz %", "number", false),
+      f("active", "Aktiv", "boolean"),
       f("notes", "Notizen", "text", false),
     ],
     z
@@ -259,12 +261,138 @@ export const modules: Record<string, Module> = {
         name: text(120),
         tax_subject_id: id,
         address: nullable(text()),
-        usage_type: z.enum(["rental", "private", "business"]),
+        usage_type: z.enum(["mixed", "rental", "private", "business"]),
+        active: z.boolean().default(true),
         estimated_value: nullable(nonnegative),
         ownership_percent: rate.refine((v) => v > 0),
         acquired_on: nullable(date),
         depreciable_basis: nullable(nonnegative),
         depreciation_rate: nullable(rate),
+        notes: nullable(text(2000)),
+      })
+      .strict(),
+  ),
+  "property-units": define(
+    "Immobilien-Einheiten",
+    "Privat",
+    "property_units",
+    "private",
+    "Einheiten einem Objekt zuordnen. Selbstnutzung, feste Vermietung, Ferienwohnung und Monteurvermietung getrennt erfassen. Flächen dienen als Grundlage einer später fachlich geprüften Kostenverteilung.",
+    [
+      rel("property_id", "Immobilie", "properties"),
+      f("name", "Einheit"),
+      f("usage_type", "Nutzung", "select", true, [
+        "owner_occupied",
+        "long_term_rental",
+        "holiday_rental",
+        "workers_rental",
+      ]),
+      f("area_sqm", "Fläche m²", "number", false),
+      f("active", "Aktiv", "boolean"),
+      f("notes", "Notizen", "text", false),
+    ],
+    z
+      .object({
+        property_id: id,
+        name: text(120),
+        usage_type: z.enum([
+          "owner_occupied",
+          "long_term_rental",
+          "holiday_rental",
+          "workers_rental",
+        ]),
+        area_sqm: nullable(positive),
+        active: z.boolean(),
+        notes: nullable(text(2000)),
+      })
+      .strict(),
+  ),
+  "property-files": define(
+    "Hausakte",
+    "Privat",
+    "property_files",
+    "private",
+    "Verträge, Wartungen, Versicherungen und andere Vorgänge am Haus dokumentieren. Ein vorhandener Beleg kann verknüpft werden.",
+    [
+      rel("property_id", "Immobilie", "properties"),
+      rel("unit_id", "Einheit (optional)", "property-units", false),
+      f("title", "Titel"),
+      f("category", "Kategorie", "select", true, [
+        "contract",
+        "maintenance",
+        "insurance",
+        "other",
+      ]),
+      f("recorded_on", "Datum", "date"),
+      f("notes", "Inhalt / Notizen", "text", false),
+      rel("document_id", "Beleg", "documents", false),
+    ],
+    z
+      .object({
+        property_id: id,
+        unit_id: nullable(id),
+        title: text(200),
+        category: z.enum(["contract", "maintenance", "insurance", "other"]),
+        recorded_on: date,
+        notes: nullable(text(10000)),
+        document_id: nullable(id),
+      })
+      .strict(),
+  ),
+  "property-meters": define(
+    "Zähler",
+    "Privat",
+    "property_meters",
+    "private",
+    "Zähler frei anlegen und dem Haus oder einer Einheit zuordnen. Bei Zählerwechsel einen neuen Zähler anlegen und den bisherigen deaktivieren; Stände verschiedener Zähler werden nicht verrechnet.",
+    [
+      rel("property_id", "Immobilie", "properties"),
+      rel("unit_id", "Einheit (leer = Hauszähler)", "property-units", false),
+      f("name", "Bezeichnung"),
+      f("serial_number", "Zählernummer", "text", false),
+      f("medium", "Medium (z. B. Wasser, Strom, Wärme)"),
+      f("measurement_unit", "Maßeinheit (z. B. m³, kWh)"),
+      f("active", "Aktiv", "boolean"),
+      f("notes", "Notizen", "text", false),
+    ],
+    z
+      .object({
+        property_id: id,
+        unit_id: nullable(id),
+        name: text(120),
+        serial_number: nullable(text(120)),
+        medium: text(80),
+        measurement_unit: text(20),
+        active: z.boolean(),
+        notes: nullable(text(2000)),
+      })
+      .strict(),
+  ),
+  "meter-readings": define(
+    "Zählerstände",
+    "Privat",
+    "meter_readings",
+    "private",
+    "Ablesedatum und kumulierten Zählerstand eintragen. Verbrauch ergibt sich nur zwischen zwei Ablesungen desselben Zählers. Dies ist die Datengrundlage für Nebenkosten, noch keine fertige Nebenkostenabrechnung.",
+    [
+      rel("meter_id", "Zähler", "property-meters"),
+      f("read_on", "Ablesedatum", "date"),
+      f("reading", "Zählerstand", "number"),
+      f("notes", "Notizen", "text", false),
+    ],
+    z
+      .object({
+        meter_id: id,
+        read_on: date,
+        reading: z.coerce
+          .number()
+          .finite()
+          .min(0)
+          .max(999999999999)
+          .refine(
+            (v) => Number(v.toFixed(3)) === v,
+            "Maximal drei Nachkommastellen",
+          ),
         notes: nullable(text(2000)),
       })
       .strict(),
@@ -277,6 +405,7 @@ export const modules: Record<string, Module> = {
     "Miete, Werbungskosten, Darlehenszinsen und Investitionen getrennt dokumentieren. Keine automatische Steuererklärung.",
     [
       rel("property_id", "Immobilie", "properties"),
+      rel("unit_id", "Einheit (leer = Gesamtobjekt)", "property-units", false),
       f("booked_on", "Datum", "date"),
       f("kind", "Art", "select", true, [
         "rent",
@@ -291,6 +420,7 @@ export const modules: Record<string, Module> = {
     z
       .object({
         property_id: id,
+        unit_id: nullable(id),
         booked_on: date,
         kind: z.enum(["rent", "expense", "interest", "investment"]),
         amount: positive,

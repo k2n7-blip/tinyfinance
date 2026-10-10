@@ -17,6 +17,14 @@ export function permits(
   return ["owner", "bookkeeper"].includes(role);
 }
 export const labels: Record<string, string> = {
+  contract: "Vertrag",
+  maintenance: "Wartung / Reparatur",
+  insurance: "Versicherung",
+  owner_occupied: "Selbst bewohnt",
+  long_term_rental: "Dauerhaft vermietet",
+  holiday_rental: "Ferienwohnung",
+  workers_rental: "Monteurvermietung",
+  mixed: "Gemischt genutzt",
   owner: "Administrator",
   bookkeeper: "Buchhaltung",
   advisor_read: "Steuerberater · Lesen",

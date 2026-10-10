@@ -5,6 +5,7 @@ export async function allRows(
   client: SupabaseClient,
   table: string,
   org: string,
+  includeDiscarded = false,
 ): Promise<Row[]> {
   const rows: Row[] = [];
   for (let page = 0; page < 100; page++) {
@@ -21,7 +22,10 @@ export async function allRows(
     const { data, error } = await query.range(page * 500, page * 500 + 499);
     if (error) databaseError(error);
     rows.push(...(data || []));
-    if ((data?.length || 0) < 500) return rows;
+    if ((data?.length || 0) < 500)
+      return table === "documents" && !includeDiscarded
+        ? rows.filter((r) => !r.discarded_at)
+        : rows;
   }
   throw new AppError(
     413,

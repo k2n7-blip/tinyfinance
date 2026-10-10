@@ -1,3 +1,4 @@
+import { meterConsumption } from "@/lib/meter-consumption";
 import { notFound } from "next/navigation";
 import { pageContext } from "@/lib/access";
 import { modules } from "@/lib/modules";
@@ -22,8 +23,59 @@ export default async function ModulePage({
     .eq("organization_id", a.org)
     .order("id")
     .range(0, 49);
+  if (
+    error &&
+    ["42P01", "PGRST205"].includes(error.code) &&
+    [
+      "property-units",
+      "property-files",
+      "property-meters",
+      "meter-readings",
+    ].includes(key)
+  )
+    return (
+      <FinanceShell
+        title={mod.title}
+        role={a.role}
+        privateAccess={a.privateAccess}
+        payrollAccess={a.payrollAccess}
+      >
+        <section className="panel">
+          <h2>Immobilienbereich einrichten</h2>
+          <p>
+            Die neuen Tabellen fehlen noch. Migration 012 und anschließend 013
+            einmal im separaten Supabase-Testprojekt ausführen. Bereits
+            angewendete Dateien nicht erneut ausführen.
+          </p>
+          <a href="https://github.com/k2n7-blip/tinyfinance/tree/feat/finance-workflows/tinyfinance-v2/supabase">
+            Migrationsdateien öffnen
+          </a>
+        </section>
+      </FinanceShell>
+    );
   if (error) databaseError(error);
-  const choices: Record<string, { id: string; label: string }[]> = {};
+  const propertyRows = [
+    "property-units",
+    "property-files",
+    "property-meters",
+    "meter-readings",
+  ].includes(key)
+    ? await allRows(a.client, "properties", a.org)
+    : [];
+  const meterRows =
+    key === "meter-readings"
+      ? await allRows(a.client, "property_meters", a.org)
+      : [];
+  const consumption =
+    key === "meter-readings"
+      ? meterConsumption(
+          (await allRows(a.client, "meter_readings", a.org)) as any,
+        )
+      : [];
+  const choices: Record<
+    string,
+    { id: string; label: string; property_id?: string }[]
+  > = {};
   for (const rel of new Set(
     mod.fields.map((f) => f.relation).filter(Boolean) as string[],
   )) {
@@ -32,7 +84,10 @@ export default async function ModulePage({
     const rows = await allRows(a.client, table, a.org);
     choices[rel] = rows.map((r) => ({
       id: r.id,
+      property_id: r.property_id,
       label: [
+        propertyRows.find((p) => p.id === r.property_id)?.name,
+        r.serial_number,
         r.code || r.account_number,
         r.name || r.original_filename || r.description || r.provider,
       ]
@@ -47,6 +102,25 @@ export default async function ModulePage({
       privateAccess={a.privateAccess}
       payrollAccess={a.payrollAccess}
     >
+      {[
+        "properties",
+        "property-units",
+        "property-files",
+        "property-meters",
+        "meter-readings",
+      ].includes(key) && (
+        <nav className="panel" aria-label="Immobilienbereiche">
+          <a href="/finance/properties">Immobilien</a>
+          {" · "}
+          <a href="/finance/property-units">Einheiten</a>
+          {" · "}
+          <a href="/finance/property-files">Hausakte</a>
+          {" · "}
+          <a href="/finance/property-meters">Zähler</a>
+          {" · "}
+          <a href="/finance/meter-readings">Zählerstände</a>
+        </nav>
+      )}
       <ModuleWorkspace
         moduleKey={key}
         title={mod.title}
@@ -62,6 +136,56 @@ export default async function ModulePage({
           a.payrollAccess,
         )}
       />
+      {key === "meter-readings" && (
+        <section className="panel">
+          <h2>Verbrauch zwischen Ablesungen</h2>
+          <p>
+            Für die erste Ablesung fehlt ein Vergleichsstand. Keine Hochrechnung
+            oder automatische Kostenverteilung.
+          </p>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Haus / Zähler</th>
+                  <th>Von</th>
+                  <th>Bis</th>
+                  <th>Verbrauch</th>
+                </tr>
+              </thead>
+              <tbody>
+                {consumption.map((r) => {
+                  const meter = meterRows.find((m) => m.id === r.meter_id);
+                  return (
+                    <tr key={r.id}>
+                      <td>
+                        {
+                          propertyRows.find((p) => p.id === meter?.property_id)
+                            ?.name
+                        }{" "}
+                        · {meter?.name}
+                      </td>
+                      <td>{r.previous_date || "—"}</td>
+                      <td>{r.read_on}</td>
+                      <td>
+                        {r.invalid
+                          ? "Stand prüfen"
+                          : r.consumption === null
+                            ? "—"
+                            : r.consumption.toLocaleString("de-DE", {
+                                maximumFractionDigits: 3,
+                              }) +
+                              " " +
+                              (meter?.measurement_unit || "")}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
       {["platforms", "time-entries"].includes(key) && (
         <section className="panel">
           <h2>CSV-Import</h2>

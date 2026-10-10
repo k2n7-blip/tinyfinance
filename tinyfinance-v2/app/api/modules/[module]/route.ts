@@ -77,3 +77,37 @@ export const PATCH = route(async (req: NextRequest, { params }: Params) => {
     );
   return NextResponse.json({ row: data });
 });
+
+export const DELETE = route(async (req: NextRequest, { params }: Params) => {
+  const { module: key } = await params;
+  if (!["properties", "property-units"].includes(key))
+    throw new AppError(405, "Löschen ist für diesen Bereich nicht verfügbar.");
+  const a = await getContext("private");
+  const identity = z
+    .object({
+      id: z.string().uuid(),
+      record_version: z.number().int().positive(),
+    })
+    .strict()
+    .parse(await jsonBody(req));
+  const { data, error } = await a.client
+    .from(modules[key].table)
+    .delete()
+    .eq("id", identity.id)
+    .eq("organization_id", a.org)
+    .eq("record_version", identity.record_version)
+    .select("id")
+    .maybeSingle();
+  if (error?.code === "23503")
+    throw new AppError(
+      409,
+      "Objekt oder Einheit ist noch verknüpft. Bitte deaktivieren, damit die Historie erhalten bleibt.",
+    );
+  if (error) databaseError(error);
+  if (!data)
+    throw new AppError(
+      409,
+      "Eintrag wurde geändert oder konnte nicht gelöscht werden. Falls neu eingerichtet: Migration 012 prüfen.",
+    );
+  return NextResponse.json({ deleted: true });
+});

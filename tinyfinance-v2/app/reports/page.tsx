@@ -92,6 +92,13 @@ export default async function Reports({
       tables.map((t) => allRows(a.client, t, a.org)),
     );
     privateData = Object.fromEntries(tables.map((t, i) => [t, rows[i]]));
+    const units = await a.client
+      .from("property_units")
+      .select("*")
+      .eq("organization_id", a.org);
+    if (units.error && !["42P01", "PGRST205"].includes(units.error.code))
+      throw new Error("Einheiten konnten nicht geladen werden.");
+    privateData.property_units = units.data || [];
   }
   let timeEntries: Row[] = [],
     employees: Row[] = [];
@@ -111,14 +118,16 @@ export default async function Reports({
         ) === i,
     );
   const assetsTotal =
-    (privateData.properties || []).reduce(
-      (s, p) =>
-        s +
-        Math.round(
-          (cents(p.estimated_value || 0) * Number(p.ownership_percent)) / 100,
-        ),
-      0,
-    ) +
+    (privateData.properties || [])
+      .filter((p) => p.active !== false)
+      .reduce(
+        (s, p) =>
+          s +
+          Math.round(
+            (cents(p.estimated_value || 0) * Number(p.ownership_percent)) / 100,
+          ),
+        0,
+      ) +
     (privateData.interest_accounts || []).reduce(
       (s, r) => s + cents(r.balance),
       0,
@@ -672,6 +681,68 @@ export default async function Reports({
               Erwerbsjahr, zeitanteiliger AfA oder Sonderregelungen.
               Mietbuchungen werden als eingegebener eigener Anteil behandelt.
             </p>
+            <h3>Einheiten · getrennte Erfassung</h3>
+            <p>
+              Gemeinsame Hausbuchungen bleiben am Objekt. Selbstnutzung und
+              gemischte Nutzung erfordern eine gesonderte steuerliche Prüfung;
+              Beträge sind keine automatisch abziehbaren Werbungskosten.
+            </p>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Objekt / Einheit</th>
+                    <th>Nutzung</th>
+                    <th>Mieten</th>
+                    <th>Kosten</th>
+                    <th>Zinsen</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {privateData.property_units.map((unit) => {
+                    const entries = privateData.rental_entries.filter(
+                      (r) =>
+                        r.unit_id === unit.id &&
+                        r.booked_on >= from &&
+                        r.booked_on <= to,
+                    );
+                    const sum = (kind: string) =>
+                      moneyCents(
+                        entries
+                          .filter((r) => r.kind === kind)
+                          .reduce((s, r) => s + cents(r.amount), 0),
+                      );
+                    return (
+                      <tr key={unit.id}>
+                        <td>
+                          {
+                            privateData.properties.find(
+                              (p) => p.id === unit.property_id,
+                            )?.name
+                          }{" "}
+                          · {unit.name}
+                        </td>
+                        <td>
+                          {
+                            (
+                              {
+                                owner_occupied: "Selbst bewohnt",
+                                long_term_rental: "Fest vermietet",
+                                holiday_rental: "Ferienwohnung",
+                                workers_rental: "Monteurvermietung",
+                              } as Record<string, string>
+                            )[unit.usage_type]
+                          }
+                        </td>
+                        <td>{sum("rent")}</td>
+                        <td>{sum("expense")}</td>
+                        <td>{sum("interest")}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
             <a href="/api/module-export/rental-entries">
               Objektbuchungen exportieren
             </a>

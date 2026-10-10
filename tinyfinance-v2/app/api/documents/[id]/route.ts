@@ -68,3 +68,38 @@ export const PATCH = route(async (req: NextRequest, { params }: Params) => {
     );
   return NextResponse.json({ row: data });
 });
+
+export const DELETE = route(async (req: NextRequest, { params }: Params) => {
+  const a = await getContext("write");
+  const id = z
+    .string()
+    .uuid()
+    .parse((await params).id);
+  const input = z
+    .object({
+      version: z.number().int().positive(),
+      restore: z.boolean().optional(),
+    })
+    .strict()
+    .parse(await jsonBody(req));
+  const { data, error } = await a.client.rpc("set_document_trash", {
+    org: a.org,
+    doc_id: id,
+    expected_version: input.version,
+    trash: !input.restore,
+  });
+  if (error) {
+    if (error.code === "PGRST202" || error.code === "42883")
+      throw new AppError(
+        503,
+        "Papierkorb noch nicht eingerichtet. Migration 011_document_trash.sql zuerst im Supabase-Testprojekt anwenden.",
+      );
+    if (error.code === "23503")
+      throw new AppError(
+        409,
+        "Dieser Beleg ist mit Buchungen, Zahlungen oder Objektbuchungen verknüpft und kann nicht in den Papierkorb.",
+      );
+    databaseError(error);
+  }
+  return NextResponse.json({ row: data });
+});

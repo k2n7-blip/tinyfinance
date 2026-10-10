@@ -5,7 +5,7 @@ import type { Field } from "@/lib/modules";
 import { labels } from "@/lib/permissions";
 import { money } from "@/lib/money";
 type Row = Record<string, any>;
-type Choice = { id: string; label: string };
+type Choice = { id: string; label: string; property_id?: string };
 export default function ModuleWorkspace({
   moduleKey,
   title,
@@ -238,7 +238,11 @@ export default function ModuleWorkspace({
                       required={f.required}
                       value={edit[f.key] ?? ""}
                       onChange={(e) =>
-                        setEdit({ ...edit, [f.key]: e.target.value })
+                        setEdit({
+                          ...edit,
+                          [f.key]: e.target.value,
+                          ...(f.key === "property_id" ? { unit_id: "" } : {}),
+                        })
                       }
                     >
                       <option value="">Bitte wählen</option>
@@ -248,11 +252,17 @@ export default function ModuleWorkspace({
                               {labels[o] || o}
                             </option>
                           ))
-                        : choices[f.relation || ""]?.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.label}
-                            </option>
-                          ))}
+                        : choices[f.relation || ""]
+                            ?.filter(
+                              (c) =>
+                                f.key !== "unit_id" ||
+                                c.property_id === edit.property_id,
+                            )
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.label}
+                              </option>
+                            ))}
                     </select>
                   ) : (
                     <input
@@ -274,7 +284,11 @@ export default function ModuleWorkspace({
                       }
                       value={edit[f.key] ?? ""}
                       onChange={(e) =>
-                        setEdit({ ...edit, [f.key]: e.target.value })
+                        setEdit({
+                          ...edit,
+                          [f.key]: e.target.value,
+                          ...(f.key === "property_id" ? { unit_id: "" } : {}),
+                        })
                       }
                     />
                   )}
@@ -282,6 +296,49 @@ export default function ModuleWorkspace({
               ))}
             </div>
             {canEdit && <button disabled={busy}>Speichern</button>}
+            {canEdit &&
+              edit.id &&
+              ["properties", "property-units"].includes(moduleKey) && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={async () => {
+                    if (
+                      !window.confirm(
+                        "Diesen unbenutzten Eintrag löschen? Verknüpfte Einträge bleiben geschützt.",
+                      )
+                    )
+                      return;
+                    setBusy(true);
+                    try {
+                      const r = await fetch("/api/modules/" + moduleKey, {
+                        method: "DELETE",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          id: edit.id,
+                          record_version: edit.record_version,
+                        }),
+                      });
+                      const x = await r.json();
+                      if (!r.ok) throw Error(x.error);
+                      setEdit(null);
+                      router.refresh();
+                      await load(0);
+                      setMessage("Eintrag gelöscht.");
+                    } catch (error) {
+                      setMessage(
+                        error instanceof Error
+                          ? error.message
+                          : "Löschen fehlgeschlagen.",
+                      );
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                >
+                  Unbenutzten Eintrag löschen
+                </button>
+              )}
           </form>
         </section>
       )}

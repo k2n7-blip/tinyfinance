@@ -19,8 +19,8 @@ KI-Opt-in wird separat von DATEV-Einstellungen gespeichert; Berater- und Mandant
 Der KI-Button bleibt bei deaktivierter Erkennung sichtbar und erklärt die fehlende Aktivierung. Fortschritt und Anbieterfehler erscheinen direkt am Beleg; Fehlermeldungen unterscheiden Schlüssel, Berechtigung, Guthaben und Anfragelimit, ohne Anbieter-Rohdaten auszugeben.
 
 ## Automatisiert geprüft
-45 fachliche Tests: exakte Geldbeträge, Pflichtfelder und Null-USt, Berechtigungsmodell, Importspezifika und Fehlerfälle, DATEV-Formatvalidierung und Storno, Kostenstellenaufteilung, Zins-/Kreditprognosen und offene Posten.
-47 PostgreSQL-17-Assertions wenden alle tatsächlichen Migrationen außer 002 an: Organisationsgrenzen, Rollen, Administrator-MFA-Claims, private/Personal- und Storage-Policies, Originalschutz, Audit-Manipulation, Versionskonflikte, Freigabe/Storno, Abgleiche, idempotente und atomare Importe sowie ungültige Zahlen.
+48 fachliche Tests: exakte Geldbeträge, Pflichtfelder und Null-USt, Berechtigungsmodell, Importspezifika und Fehlerfälle, DATEV-Formatvalidierung und Storno, Kostenstellenaufteilung, Zins-/Kreditprognosen und offene Posten.
+64 PostgreSQL-17-Assertions wenden alle tatsächlichen Migrationen außer 002 an: Organisationsgrenzen, Rollen, Administrator-MFA-Claims, private/Personal- und Storage-Policies, Originalschutz, Audit-Manipulation, Versionskonflikte, Freigabe/Storno, Abgleiche, idempotente und atomare Importe sowie ungültige Zahlen.
 Zwei Chromium-Smoke-Tests prüfen die fehlende Konfiguration, gesperrte Finanz-APIs, Ursprungskontrolle und Smartphone-Layout. Sie prüfen keine angemeldeten Finanzabläufe.
 TypeScript und Produktionsbuild erfolgreich. Aktueller npm-Audit der Produktionsabhängigkeiten ohne bekannte Schwachstellen nach PostCSS-Override.
 
@@ -35,3 +35,15 @@ Kontierung ist eine manuelle Auswahl bestätigter Konten, keine automatische SKR
 Zinsprognosen: Actual/365, bekannte Zinsänderungen und Fälligkeit, keine unbekannten Zinseszinsen. Kredite: monatliche Zinsen und konstante eingegebene Rate. AfA basiert auf eigenen Eingaben, nicht automatischer Rechtsprüfung.
 
 Plattformwerte werden im Überblick und getrennt je Ferienhaus in den Auswertungen angezeigt. Stornierte Abrechnungen sind ausgeschlossen; historische Aufenthalte lassen sich über einen Link vollständig auswählen. Holidu-Dubletten nach Buchungsreferenz werden zur Prüfung angezeigt, ohne Löschung oder zusätzliche Journal-/Steuerbuchungen. PDF-, native CSV- und Vorlagenimporte verwenden denselben Abgleich mit vorhandenen Referenzen; identische Inhalte überspringt die bestehende transaktionale RPC, abweichende Inhalte brechen den Import ab. Gleichzeitig erstmals importierte unterschiedliche PDF/CSV-Referenzen sind ohne zusätzliche Datenbanksperre nicht vollständig gegen Wettläufe abgesichert.
+
+Beleg-Papierkorb mit Wiederherstellung benötigt Migration 011_document_trash.sql im separaten Testprojekt. Verknüpfte Belege bleiben geschützt; Originale und Audit bleiben erhalten. Aktive Beleglisten und Auswertungen schließen Papierkorb-Belege aus; ohne Migration bleibt die bestehende Anzeige nutzbar, nur die neue Aktion meldet den fehlenden Migrationsstand. Kein endgültiges Löschen von Originalen.
+
+## Immobilien, Hausakte und TinyTeam
+
+Migration 012 ergänzt mehrere Nutzungseinheiten je Privatimmobilie und optionale Einheiten bei Objektbuchungen. Unverknüpfte Immobilien/Einheiten lassen sich auditierbar löschen; verknüpfte nur deaktivieren. Gemischte Selbstnutzung/Vermietung wird nicht steuerlich automatisch verteilt.
+
+Migration 013 ergänzt Hausakteneinträge mit optionalem Beleg, frei angelegte Haus-/Einheitenzähler und datierte kumulierte Stände mit drei Nachkommastellen. Verbrauch wird nur zwischen Ablesungen desselben Zählers berechnet. Doppelte Datumsangaben und fallende Stände werden abgelehnt. Bei Zählerwechsel neuen Zähler anlegen. Keine fertige Nebenkostenabrechnung, keine automatische Kostenumlage.
+
+TinyTeam 13.3.3: Datei-Adapter unter `integrations/tinyteam` nutzt vorhandene Anmeldung, Mitarbeiter-IDs, Häuser, Zeitbuchungen und Monatsfreigaben. Nur freigegebene abgeschlossene Zeiten, Hauszuordnung explizit. Mitarbeiter-Zuordnungsliste dient dem manuellen Anlegen, keine automatische Stammdatenübernahme oder Lohnberechnung; keine laufende Synchronisation. Noch nicht beim Benutzer deployed.
+
+Neue Migrationen 011, 012, 013 im Testprojekt einmal anwenden; keine produktive Datenbank durch diesen Auftrag verändert.

@@ -1,3 +1,4 @@
+import { allRows } from "@/lib/data";
 import { NextRequest, NextResponse } from "next/server";
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -12,31 +13,32 @@ export const GET = route(async (req: NextRequest) => {
     .min(0)
     .max(10000)
     .parse(req.nextUrl.searchParams.get("page") || 0);
-  let query = a.client
-    .from("documents")
-    .select("*", { count: "exact" })
-    .eq("organization_id", a.org)
-    .order("created_at", { ascending: false })
-    .order("id")
-    .range(page * 50, page * 50 + 49);
-  const q = (req.nextUrl.searchParams.get("q") || "").slice(0, 120);
-  if (q)
-    query = query.ilike(
-      "original_filename",
-      "%" + q.replace(/[\\%_]/g, "\\$&") + "%",
-    );
+  const trash = req.nextUrl.searchParams.get("trash") === "1";
+  const q = (req.nextUrl.searchParams.get("q") || "")
+    .slice(0, 120)
+    .toLowerCase();
   const status = req.nextUrl.searchParams.get("status");
-  if (status)
-    query = query.eq(
-      "review_status",
-      z.enum(["pending", "reviewed", "rejected"]).parse(status),
-    );
+  if (status) z.enum(["pending", "reviewed", "rejected"]).parse(status);
   const center = req.nextUrl.searchParams.get("center");
-  if (center)
-    query = query.eq("cost_center_id", z.string().uuid().parse(center));
-  const { data, error, count } = await query;
-  if (error) databaseError(error);
-  return NextResponse.json({ rows: data, total: count, page });
+  if (center) z.string().uuid().parse(center);
+  const rows = (await allRows(a.client, "documents", a.org, true))
+    .filter(
+      (d) =>
+        !!d.discarded_at === trash &&
+        (!q || String(d.original_filename).toLowerCase().includes(q)) &&
+        (!status || d.review_status === status) &&
+        (!center || d.cost_center_id === center),
+    )
+    .sort(
+      (x, y) =>
+        String(y.created_at).localeCompare(String(x.created_at)) ||
+        String(x.id).localeCompare(String(y.id)),
+    );
+  return NextResponse.json({
+    rows: rows.slice(page * 50, page * 50 + 50),
+    total: rows.length,
+    page,
+  });
 });
 export const POST = route(async (req: NextRequest) => {
   const a = await getContext("write");
@@ -119,7 +121,7 @@ export const POST = route(async (req: NextRequest) => {
       if (doc && doc.upload_status === "ready")
         throw new AppError(
           409,
-          "Identische Datei bereits vorhanden oder Upload läuft.",
+          "Identische Datei bereits vorhanden oder Upload läuft. Falls im Papierkorb: dort wiederherstellen.",
         );
       if (!doc) {
         const id = randomUUID(),

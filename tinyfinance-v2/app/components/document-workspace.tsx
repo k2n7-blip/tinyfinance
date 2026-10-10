@@ -35,6 +35,7 @@ export default function DocumentWorkspace({
     [busy, setBusy] = useState(false),
     [extracting, setExtracting] = useState(false),
     [message, setMessage] = useState(""),
+    [trash, setTrash] = useState(false),
     [query, setQuery] = useState(""),
     [status, setStatus] = useState(""),
     [center, setCenter] = useState(""),
@@ -46,6 +47,8 @@ export default function DocumentWorkspace({
     const r = await fetch(
       "/api/documents?page=" +
         next +
+        "&trash=" +
+        (trash ? "1" : "0") +
         "&q=" +
         encodeURIComponent(query) +
         "&status=" +
@@ -164,6 +167,34 @@ export default function DocumentWorkspace({
     : [];
   return (
     <>
+      <label>
+        <input
+          type="checkbox"
+          checked={trash}
+          onChange={async (e) => {
+            const enabled = e.target.checked;
+            setTrash(enabled);
+            setSelected(null);
+            setPage(0);
+            try {
+              const r = await fetch(
+                "/api/documents?trash=" + (enabled ? "1" : "0"),
+              );
+              const x = await r.json();
+              if (!r.ok) throw Error(x.error);
+              setDocs(x.rows);
+              setTotal(x.total);
+            } catch (error) {
+              setMessage(
+                error instanceof Error
+                  ? error.message
+                  : "Liste nicht verfügbar.",
+              );
+            }
+          }}
+        />{" "}
+        Papierkorb anzeigen
+      </label>
       {canEdit && (
         <section className="panel upload-panel">
           <h2>Originale sicher ablegen</h2>
@@ -401,7 +432,7 @@ export default function DocumentWorkspace({
                   <label key={key}>
                     {label}
                     <input
-                      disabled={!canEdit}
+                      disabled={!canEdit || !!selected?.discarded_at}
                       type={type}
                       step={type === "number" ? "0.01" : undefined}
                       value={selected[key] ?? ""}
@@ -414,7 +445,7 @@ export default function DocumentWorkspace({
                 <label>
                   Art
                   <select
-                    disabled={!canEdit}
+                    disabled={!canEdit || !!selected?.discarded_at}
                     value={selected.direction}
                     onChange={(e) =>
                       setSelected({ ...selected, direction: e.target.value })
@@ -427,7 +458,7 @@ export default function DocumentWorkspace({
                 <label>
                   Kostenstelle
                   <select
-                    disabled={!canEdit}
+                    disabled={!canEdit || !!selected?.discarded_at}
                     value={selected.cost_center_id || ""}
                     onChange={(e) =>
                       setSelected({
@@ -447,7 +478,7 @@ export default function DocumentWorkspace({
                 <label>
                   Prüfstatus
                   <select
-                    disabled={!canEdit}
+                    disabled={!canEdit || !!selected?.discarded_at}
                     value={selected.review_status}
                     onChange={(e) =>
                       setSelected({
@@ -481,13 +512,63 @@ export default function DocumentWorkspace({
                 </p>
               ) : null}
               {canEdit && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={async () => {
+                    if (
+                      !selected.discarded_at &&
+                      !window.confirm(
+                        "Diesen Beleg in den Papierkorb verschieben? Das Original bleibt erhalten.",
+                      )
+                    )
+                      return;
+                    setBusy(true);
+                    try {
+                      const r = await fetch("/api/documents/" + selected.id, {
+                        method: "DELETE",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          version: selected.version,
+                          restore: !!selected.discarded_at,
+                        }),
+                      });
+                      const x = await r.json();
+                      if (!r.ok) throw Error(x.error);
+                      setSelected(null);
+                      await load(0);
+                      setMessage(
+                        selected.discarded_at
+                          ? "Beleg wiederhergestellt."
+                          : "Beleg in den Papierkorb verschoben.",
+                      );
+                    } catch (error) {
+                      setMessage(
+                        error instanceof Error
+                          ? error.message
+                          : "Aktion fehlgeschlagen.",
+                      );
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                >
+                  {selected.discarded_at
+                    ? "Beleg wiederherstellen"
+                    : "Beleg in Papierkorb"}
+                </button>
+              )}
+              {canEdit && (
                 <div className="row">
-                  <button disabled={busy} onClick={save}>
+                  <button
+                    disabled={busy || !!selected.discarded_at}
+                    onClick={save}
+                  >
                     Änderungen speichern
                   </button>
                   <button
                     className="secondary"
-                    disabled={busy || !aiEnabled}
+                    disabled={busy || !aiEnabled || !!selected.discarded_at}
                     onClick={async () => {
                       setBusy(true);
                       setExtracting(true);
