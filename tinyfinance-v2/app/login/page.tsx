@@ -109,7 +109,9 @@ export default function Login() {
                 onChange={(e) => setPassword(e.target.value)}
               />
             </label>
-            <button disabled={!configured || busy}>Anmelden</button>
+            <button disabled={!configured || busy} aria-busy={busy}>
+              {busy ? "Anmeldung wird geprüft …" : "Anmelden"}
+            </button>
           </form>
         ) : (
           <form className="stack" onSubmit={verify}>
@@ -125,7 +127,9 @@ export default function Login() {
                 required
               />
             </label>
-            <button disabled={busy}>Code bestätigen</button>
+            <button disabled={busy} aria-busy={busy}>
+              {busy ? "Code wird geprüft …" : "Code bestätigen"}
+            </button>
           </form>
         )}
         <p className="feedback" role="status">
