@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDocumentProxy } from "unpdf";
+import { holiduBookingsCsv } from "@/lib/holidu-csv";
 import { orderedPdfText } from "@/lib/pdf-text";
 import { getContext } from "@/lib/access";
 import { allRows } from "@/lib/data";
@@ -16,7 +17,7 @@ export const POST = route(async (req: NextRequest) => {
     const rows = z
       .array(modules.platforms.schema)
       .min(1)
-      .max(200)
+      .max(2000)
       .parse(Array.isArray(body) ? body : [body]);
     if (rows.some((row) => row.status !== "draft"))
       throw new AppError(
@@ -33,6 +34,28 @@ export const POST = route(async (req: NextRequest) => {
       )
     )
       throw new AppError(400, "Aktives Ferienhaus auswählen.");
+    const existing = await allRows(a.client, "platform_settlements", a.org);
+    const references = new Map<string, string>();
+    for (const row of rows) {
+      if (row.platform !== "Holidu" || !row.booking_reference) continue;
+      const matches = existing.filter(
+        (r) =>
+          r.platform === "Holidu" &&
+          r.booking_reference === row.booking_reference,
+      );
+      if (matches.length > 1)
+        throw new AppError(
+          409,
+          "Mehrere vorhandene Abrechnungen für Buchung " +
+            row.booking_reference +
+            ": gesondert prüfen.",
+        );
+      row.reference =
+        matches.length === 1
+          ? String(matches[0].reference)
+          : references.get(row.booking_reference) || row.reference;
+      references.set(row.booking_reference, row.reference);
+    }
     const { data, error } = await a.client.rpc("import_records", {
       org: a.org,
       kind: "platforms",
@@ -46,6 +69,31 @@ export const POST = route(async (req: NextRequest) => {
   const file = (await req.formData()).get("file");
   if (!(file instanceof File) || file.size > 3_000_000)
     throw new AppError(400, "PDF bis 3 MB erforderlich.");
+  if (file.name.toLowerCase().endsWith(".csv")) {
+    const entries = holiduBookingsCsv(await file.text());
+    const existing = await allRows(a.client, "platform_settlements", a.org);
+    for (const entry of entries) {
+      const suggestion = entry.suggestion;
+      if (!suggestion) continue;
+      const matches = existing.filter(
+        (r) =>
+          r.platform === "Holidu" &&
+          r.booking_reference === suggestion.booking_reference,
+      );
+      if (matches.length === 1)
+        suggestion.reference = String(matches[0].reference);
+      if (matches.length > 1) {
+        entry.error =
+          "Mehrere vorhandene Abrechnungen für diese Buchung: gesondert prüfen.";
+        delete entry.suggestion;
+      }
+    }
+    return NextResponse.json({
+      entries,
+      centers: await allRows(a.client, "cost_centers", a.org),
+      mappingScope: a.org + ":" + a.user.id,
+    });
+  }
   const bytes = new Uint8Array(await file.arrayBuffer());
   if (Buffer.from(bytes.subarray(0, 5)).toString() !== "%PDF-")
     throw new AppError(400, "Keine gültige PDF-Datei.");

@@ -75,13 +75,14 @@ export default function PlatformPdfImport() {
   }
   return (
     <section className="stack">
-      <h2>Holidu-PDFs gesammelt importieren</h2>
+      <h2>Holidu-CSV oder PDFs gesammelt importieren</h2>
       <p>
-        Bis zu 200 Text-PDFs pro Stapel, jeweils bis 3 MB. Ohne KI:
-        Unterkunfts-ID oder eindeutiger Ferienhausname ordnen automatisch zu.
-        Einmal ausgewählte Zuordnungen werden in diesem Browser für dein Konto
-        und diesen Mandanten gespeichert. Unbekannte Ferienhäuser bitte
-        zuordnen. Originale zusätzlich unter Belege archivieren.
+        Original-Holidu-CSV bis 2000 Buchungen oder bis zu 200 Text-PDFs,
+        jeweils bis 3 MB. Ohne KI: Unterkunfts-ID oder eindeutiger
+        Ferienhausname ordnen automatisch zu. Einmal ausgewählte Zuordnungen
+        werden in diesem Browser für dein Konto und diesen Mandanten
+        gespeichert. Unbekannte Ferienhäuser bitte zuordnen. Originale
+        zusätzlich unter Belege archivieren.
       </p>
       <form
         className="stack"
@@ -124,17 +125,25 @@ export default function PlatformPdfImport() {
                     ) || "{}",
                   );
                 } catch {}
-                results.push({
-                  filename: file.name,
-                  suggestion: data.suggestion,
-                  accommodation: data.accommodation,
-                  center: assignAccommodation(
-                    data.accommodation,
-                    active,
-                    remembered,
-                  ),
-                  scope: data.mappingScope,
-                });
+                for (const entry of data.entries || [
+                  {
+                    filename: file.name,
+                    suggestion: data.suggestion,
+                    accommodation: data.accommodation,
+                  },
+                ]) {
+                  results.push({
+                    ...entry,
+                    center: entry.suggestion
+                      ? assignAccommodation(
+                          entry.accommodation,
+                          active,
+                          remembered,
+                        )
+                      : "",
+                    scope: data.mappingScope,
+                  });
+                }
               } catch (error) {
                 results.push({
                   filename: file.name,
@@ -148,7 +157,7 @@ export default function PlatformPdfImport() {
               setEntries([...results]);
             }
             setMessage(
-              `${results.filter((e) => e.suggestion).length} PDFs ausgelesen; ${results.filter((e) => e.error).length} Fehler. Zuordnung und Beträge prüfen.`,
+              `${results.filter((e) => e.suggestion).length} Abrechnungen ausgelesen; ${results.filter((e) => e.error).length} Fehler. Zuordnung und Beträge prüfen.`,
             );
           } finally {
             setBusy(false);
@@ -156,26 +165,29 @@ export default function PlatformPdfImport() {
         }}
       >
         <label>
-          PDF-Dateien
+          Holidu-CSV oder PDF-Dateien
           <input
             type="file"
             name="file"
-            accept="application/pdf,.pdf"
+            accept="application/pdf,.pdf,.csv,text/csv"
             multiple
             required
             disabled={busy}
           />
         </label>
         <button disabled={busy}>
-          {busy ? "Wird verarbeitet …" : "Alle PDFs auslesen"}
+          {busy ? "Wird verarbeitet …" : "Dateien auslesen"}
         </button>
       </form>
       {entries.length > 0 && (
         <>
           <p>
-            Gebühren enthalten Umsatzsteuer. Auszahlungen sind erwartete Beträge
-            vor weiteren Kontoanpassungen. Fehlerhafte oder nicht zugeordnete
-            Dateien werden nicht übernommen.
+            Der Original-CSV-Export benötigt keine Umformatierung. Bereits
+            vorhandene Buchungen verwenden ihre vorhandene Abrechnungsreferenz;
+            widersprüchliche Daten brechen den Import ab. Gebühren enthalten
+            Umsatzsteuer. Auszahlungen sind erwartete Beträge vor weiteren
+            Kontoanpassungen. Fehlerhafte oder nicht zugeordnete Dateien werden
+            nicht übernommen.
           </p>
           <div style={{ overflowX: "auto" }}>
             <table>
