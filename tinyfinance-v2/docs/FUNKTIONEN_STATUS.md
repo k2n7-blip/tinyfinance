@@ -12,8 +12,10 @@
 - Private Stammdaten und Auswertungen für Immobilien, Mietvorgänge, Zinsen, Kredite, Versicherungen, Renten, Vermögen und Fristen.
 - Auswertungen für Journal, offene Posten, Kostenstellen, aufgezeichnete Umsatzsteuer, Zahlungs- und Liquiditätsvorbereitung; Prognosen zeigen ihre Annahmen.
 
+Einrichtungsfehler unterscheiden jetzt fehlende Umgebungswerte von fehlenden Datenbankmigrationen; die Einrichtungsseite zeigt nur Anwesenheitsstatus, keine Schlüsselwerte.
+
 ## Automatisiert geprüft
-29 fachliche Tests: exakte Geldbeträge, Pflichtfelder und Null-USt, Berechtigungsmodell, Importspezifika und Fehlerfälle, DATEV-Formatvalidierung und Storno, Kostenstellenaufteilung, Zins-/Kreditprognosen und offene Posten.
+30 fachliche Tests: exakte Geldbeträge, Pflichtfelder und Null-USt, Berechtigungsmodell, Importspezifika und Fehlerfälle, DATEV-Formatvalidierung und Storno, Kostenstellenaufteilung, Zins-/Kreditprognosen und offene Posten.
 42 PostgreSQL-17-Assertions wenden alle tatsächlichen Migrationen außer 002 an: Organisationsgrenzen, Rollen, Administrator-MFA-Claims, private/Personal- und Storage-Policies, Originalschutz, Audit-Manipulation, Versionskonflikte, Freigabe/Storno, Abgleiche, idempotente und atomare Importe sowie ungültige Zahlen.
 Zwei Chromium-Smoke-Tests prüfen die fehlende Konfiguration, gesperrte Finanz-APIs, Ursprungskontrolle und Smartphone-Layout. Sie prüfen keine angemeldeten Finanzabläufe.
 TypeScript und Produktionsbuild erfolgreich. Aktueller npm-Audit der Produktionsabhängigkeiten ohne bekannte Schwachstellen nach PostCSS-Override.

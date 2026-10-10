@@ -7,7 +7,7 @@ export async function supabaseServer() {
     !process.env.NEXT_PUBLIC_SUPABASE_URL ||
     !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   )
-    throw new AppError(503, "Supabase-Konfiguration fehlt.");
+    throw new AppError(503, "Supabase-Konfiguration fehlt.", "configuration");
   const cookieStore = await cookies();
 
   return createServerClient(

@@ -2,6 +2,7 @@ export class AppError extends Error {
   constructor(
     public status: number,
     message: string,
+    public reason?: "configuration" | "database",
   ) {
     super(message);
   }
@@ -22,10 +23,15 @@ export function databaseError(error: {
       403,
       "Für diese Aktion fehlen Berechtigung oder Zwei-Faktor-Anmeldung.",
     );
-  if (["42P01", "42703", "PGRST202"].includes(error.code || ""))
+  if (
+    ["42P01", "42703", "PGRST202", "PGRST204", "PGRST205"].includes(
+      error.code || "",
+    )
+  )
     throw new AppError(
       503,
       "Die Datenbank muss mit den aktuellen Migrationen aktualisiert werden.",
+      "database",
     );
   throw new AppError(
     400,

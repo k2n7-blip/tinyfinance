@@ -16,6 +16,9 @@ test("unconfigured installation explains required settings and blocks financial 
   await expect(
     page.getByRole("heading", { name: "Konfiguration fehlt" }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("cell", { name: "Fehlt oder ist leer", exact: true }),
+  ).toHaveCount(2);
   const response = await request.get("/api/documents");
   expect(response.status()).toBe(503);
   expect(response.headers()["x-content-type-options"]).toBe("nosniff");

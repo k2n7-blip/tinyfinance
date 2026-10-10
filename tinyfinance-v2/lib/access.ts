@@ -57,7 +57,10 @@ export async function pageContext(scope: Scope = "read") {
   } catch (error) {
     if (!(error instanceof AppError)) throw error;
     if (error.status === 401) redirect("/login");
-    if (error.status === 503) redirect("/setup");
+    if (error.status === 503)
+      redirect(
+        error.reason === "database" ? "/setup?reason=database" : "/setup",
+      );
     if (error.status === 409) redirect("/organizations");
     if (error.status === 428) redirect("/settings");
     redirect("/dashboard?denied=1");
