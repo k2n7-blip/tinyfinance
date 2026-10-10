@@ -5,7 +5,7 @@ import { orderedPdfText } from "@/lib/pdf-text";
 import { getContext } from "@/lib/access";
 import { allRows } from "@/lib/data";
 import { AppError, databaseError } from "@/lib/errors";
-import { route, jsonBody } from "@/lib/http";
+import { route } from "@/lib/http";
 import { holiduSettlement, holiduAccommodation } from "@/lib/platform-pdf";
 import { z } from "zod";
 import { modules } from "@/lib/modules";
@@ -13,7 +13,10 @@ export const runtime = "nodejs";
 export const POST = route(async (req: NextRequest) => {
   const a = await getContext("write");
   if (req.headers.get("content-type")?.includes("application/json")) {
-    const body = await jsonBody(req);
+    const json = await req.text();
+    if (Buffer.byteLength(json) > 2_000_000)
+      throw new AppError(413, "Importdaten bis 2 MB erforderlich.");
+    const body = JSON.parse(json);
     const rows = z
       .array(modules.platforms.schema)
       .min(1)
