@@ -1,15 +1,13 @@
-# TinyFinance – Einstellungen und Sicherheit
+# TinyFinance Sammelupdate
 
-## Installation
-1. Projektdateien in das bestehende private GitHub-Repository `tinyfinance` hochladen. Die Dateien liegen weiterhin im Ordner `tinyfinance-v2`.
-2. In Supabase im SQL Editor **nur** `supabase/003_settings.sql` ausführen, sofern `001_initial.sql` bereits ausgeführt wurde. Nicht das initiale Schema erneut ausführen.
-3. Supabase Authentication > URL Configuration: Site URL und Redirect URLs für die Vercel-Domain inklusive `/reset-password` konfigurieren. SMTP und E-Mail-Zustellung für Passwort-Reset prüfen.
-4. In Vercel Root Directory `tinyfinance-v2` beibehalten, Variablen wie bisher. Deployment starten.
-5. Nach dem Login unter Einstellungen Design, Schriftgröße, Kostenstellen, Passwortwechsel und MFA testen.
+**Einspielen:** Inhalt von `tinyfinance-v2` ins gleichnamige GitHub-Verzeichnis übernehmen. Vercel Root Directory bleibt `tinyfinance-v2`. Nicht einfach das ZIP als Unterordner hochladen.
 
-## Sicherheitsgrenzen
-- MFA ist für den Nutzer aktivierbar, aber noch nicht serverseitig für alle sensiblen Endpunkte erzwungen. Vor echtem Finanzdatenbetrieb AAL2-Checks auf allen Server-Routen einbauen.
-- Recovery-Code-/Admin-Recovery-Prozess fehlt; ohne diesen kann der Verlust des Authenticator-Geräts zur Kontosperre führen.
-- Die bestehenden Datenbank-RLS-Policies und die Zuordnung organisationsübergreifender Fremdschlüssel müssen separat geprüft werden.
-- Keine GoBD-Freigabe; bestehende CSV-Prüfliste ist kein DATEV-Buchungsstapel.
-- Die App enthält noch keine produktive KI-Belegerkennung.
+**Datenbank:** 001_initial.sql muss bereits installiert sein. Falls noch nicht geschehen, 003_settings.sql und danach 004_finance_modules.sql im Supabase SQL Editor ausführen. 004 ist nur das Datenmodell für spätere Module.
+
+**Vercel Environment Variables:** NEXT_PUBLIC_SUPABASE_URL und NEXT_PUBLIC_SUPABASE_ANON_KEY (bereits vorhanden). Optional `OPENAI_API_KEY` als Secret für serverseitige KI-Extraktion. Optional `OPENAI_MODEL` als Config (Standard gpt-4.1-mini). Nach Änderung redeployen.
+
+**Neu:** Dokument öffnen, Daten korrigieren, Prüfstatus und Kostenstelle speichern, KI-Erkennung manuell auslösen. Der Upload selbst startet keine KI, damit Kosten und Datenschutz kontrollierbar bleiben.
+
+**Prüfablauf:** Login → Beleg hochladen → Original öffnen → Daten ändern → speichern → Seite neu laden → Daten erhalten? → KI nur bei API-Key → RLS mit zweitem Nutzer testen.
+
+**Wichtig:** Nicht alle diskutierten Module sind funktionsfähig; siehe docs/FUNKTIONEN_STATUS.md. DATEV und Lohn bleiben Vorbereitung. Kein Ersatz für Steuerberater oder zertifizierte Lohnabrechnung. Build und Laufzeit müssen vor Produktion separat getestet werden.
