@@ -1,8 +1,13 @@
-
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
+import { AppError } from "./errors";
 
 export async function supabaseServer() {
+  if (
+    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  )
+    throw new AppError(503, "Supabase-Konfiguration fehlt.", "configuration");
   const cookieStore = await cookies();
 
   return createServerClient(
@@ -18,7 +23,7 @@ export async function supabaseServer() {
             name: string;
             value: string;
             options?: Parameters<typeof cookieStore.set>[2];
-          }[]
+          }[],
         ) {
           try {
             items.forEach(({ name, value, options }) => {
@@ -29,10 +34,9 @@ export async function supabaseServer() {
           }
         },
       },
-    }
+    },
   );
 }
-
 
 export async function currentUser() {
   const client = await supabaseServer();

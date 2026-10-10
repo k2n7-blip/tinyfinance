@@ -1,2 +1,47 @@
-import {currentUser} from '@/lib/supabase';
-export async function GET(){const {client,user}=await currentUser();if(!user)return new Response('Nicht angemeldet',{status:401});const {data:m}=await client.from('memberships').select('organization_id').eq('user_id',user.id).limit(1).maybeSingle();if(!m)return new Response('Kein Zugriff',{status:403});const {data,error}=await client.from('documents').select('original_filename,vendor,invoice_number,invoice_date,gross_amount,review_status').eq('organization_id',m.organization_id).limit(10000);if(error)return new Response('Fehler',{status:500});const fields=['original_filename','vendor','invoice_number','invoice_date','gross_amount','review_status'] as const;const esc=(v:unknown)=>'"'+String(v??'').replace(/"/g,'""')+'"';const csv='\uFEFF'+fields.join(';')+'\r\n'+(data||[]).map(r=>fields.map(f=>esc(r[f])).join(';')).join('\r\n');return new Response(csv,{headers:{'Content-Type':'text/csv; charset=utf-8','Content-Disposition':'attachment; filename="tinyfinance-pruefliste.csv"','Cache-Control':'no-store'}})}
+import { NextRequest } from "next/server";
+import { getContext } from "@/lib/access";
+import { allRows } from "@/lib/data";
+import { csvCell } from "@/lib/money";
+import { route } from "@/lib/http";
+export const GET = route(async (_req: NextRequest) => {
+  const a = await getContext();
+  const docs = await allRows(a.client, "documents", a.org);
+  const fields = [
+    "original_filename",
+    "vendor",
+    "invoice_number",
+    "invoice_date",
+    "service_date",
+    "net_amount",
+    "vat_amount",
+    "gross_amount",
+    "currency",
+    "direction",
+    "review_status",
+  ] as const;
+  const names = [
+    "Original",
+    "Lieferant / Kunde",
+    "Rechnungsnummer",
+    "Rechnungsdatum",
+    "Leistungsdatum",
+    "Netto",
+    "Umsatzsteuer",
+    "Brutto",
+    "Währung",
+    "Art",
+    "Prüfstatus",
+  ];
+  const csv =
+    "\uFEFF" +
+    names.map(csvCell).join(";") +
+    "\r\n" +
+    docs.map((d) => fields.map((k) => csvCell(d[k])).join(";")).join("\r\n");
+  return new Response(csv, {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition":
+        'attachment; filename="tinyfinance-pruefliste.csv"',
+    },
+  });
+});

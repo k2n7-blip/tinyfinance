@@ -1,4 +1,152 @@
-import DocumentWorkspace from '../components/document-workspace';
-import {currentUser} from '@/lib/supabase';import {redirect} from 'next/navigation';
-export const dynamic='force-dynamic';
-export default async function Dashboard(){const {client,user}=await currentUser();if(!user)redirect('/login');const [{data:docs},{data:centers},{data:transactions},{data:memberships}]=await Promise.all([client.from('documents').select('id,original_filename,invoice_number,invoice_date,vendor,gross_amount,review_status,cost_center_id,created_at').order('created_at',{ascending:false}).limit(20),client.from('cost_centers').select('id,code,name,active'),client.from('bank_transactions').select('id,booked_on,amount,counterparty').order('booked_on',{ascending:false}).limit(10),client.from('memberships').select('role,organization_id').eq('user_id',user.id)]);const role=memberships?.[0]?.role;return <main><div className="top"><div><h1>TinyFinance</h1><p className="muted">TinyHäuser Brekendorf · Buchhaltungsvorbereitung</p></div><span className="pill">{user.email} · {role||'ohne Rolle'}</span></div><nav><a href="/settings">⚙ Einstellungen</a><a href="#belege">Belege</a><a href="#banken">Bank</a><a href="#kostenstellen">Kostenstellen</a><a href="#export">DATEV-Vorbereitung</a><a href="#zukunft">Weitere Module</a></nav><p className="warning">Testbetrieb: Buchungen und Steuerwerte sind vorläufig. Keine geprüfte DATEV-Datei, keine automatische Finanzamtsmeldung und keine GoBD-Freigabe.</p><div className="cards"><div className="card">Erfasste Belege<strong>{docs?.length??0}</strong><small>Letzte 20</small></div><div className="card">Zur Prüfung<strong>{docs?.filter(d=>d.review_status==='pending').length??0}</strong></div><div className="card">Bankumsätze<strong>{transactions?.length??0}</strong><small>Letzte 10</small></div><div className="card">Kostenstellen<strong>{centers?.length??0}</strong></div></div><section className="panel" id="belege"><h2>Belege hochladen</h2><p className="muted">Originale werden privat in Supabase Storage gespeichert. Exakte Dateidubletten werden per SHA-256 erkannt.</p><form action="/api/documents" method="post" encType="multipart/form-data" className="row"><input name="file" type="file" accept="application/pdf,image/png,image/jpeg" required/><select name="cost_center_id"><option value="">Noch nicht zugeordnet</option>{centers?.filter(c=>c.active!==false).map(c=><option key={c.id} value={c.id}>{c.code} · {c.name}</option>)}</select><button>Beleg speichern</button></form><DocumentWorkspace initial={(docs||[]) as any} centers={(centers||[]) as any}/></section><section className="panel" id="banken"><h2>Bankumsätze</h2><p>CSV-Import (Vorlage: Datum, Betrag, Verwendungszweck, Gegenpartei, Referenz). Keine direkte Bankverbindung.</p><form action="/api/bank-import" method="post" encType="multipart/form-data" className="row"><input type="file" name="file" accept=".csv,text/csv" required/><button>CSV importieren</button></form><table><thead><tr><th>Datum</th><th>Gegenpartei</th><th>Betrag</th></tr></thead><tbody>{transactions?.map(t=><tr key={t.id}><td>{t.booked_on}</td><td>{t.counterparty}</td><td>{t.amount} €</td></tr>)}</tbody></table></section><section className="panel" id="kostenstellen"><h2>Kostenstellen</h2><p>Neue Kostenstellen anlegen und vorhandene deaktivieren unter <a href="/settings">⚙ Einstellungen</a>.</p></section><section className="panel" id="export"><h2>Steuerberater-Übergabe</h2><p>Prüfliste der Belege als CSV, noch kein DATEV-Buchungsstapel.</p><a href="/api/export">Prüfliste exportieren</a></section><section className="panel" id="zukunft"><h2>Module und Verwaltung</h2><p>TinyTeam-Lohnvorbereitung · Holidu-Splitting · Steuerfristen · private Immobilien · Tagesgeld · Versicherungen · Rente.</p><p className="muted">Datenmodell und Umsetzungsregeln stehen in docs/ARCHITEKTUR.md.</p></section></main>}
+import { allRows } from "@/lib/data";
+import { platformReport } from "@/lib/platform-reporting";
+import { decimal } from "@/lib/money";
+import Link from "next/link";
+import { pageContext } from "@/lib/access";
+import { databaseError } from "@/lib/errors";
+import { money } from "@/lib/money";
+import FinanceShell from "@/app/components/finance-shell";
+export const dynamic = "force-dynamic";
+export default async function Dashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ denied?: string }>;
+}) {
+  const a = await pageContext();
+  const { data: totals, error } = await a.client.rpc("dashboard_totals", {
+    org: a.org,
+  });
+  if (error) databaseError(error);
+  const activeDocuments = await allRows(a.client, "documents", a.org);
+  const platforms = platformReport(
+    await allRows(a.client, "platform_settlements", a.org),
+  );
+  const { data: org } = await a.client
+    .from("organizations")
+    .select("name")
+    .eq("id", a.org)
+    .single();
+  const docs = activeDocuments
+    .filter((d) => d.review_status === "pending" && d.upload_status === "ready")
+    .sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)))
+    .slice(0, 5);
+  return (
+    <FinanceShell
+      title="Überblick"
+      subtitle={org?.name || "Dein Mandant"}
+      role={a.role}
+      privateAccess={a.privateAccess}
+      payrollAccess={a.payrollAccess}
+    >
+      {(await searchParams).denied && (
+        <p className="warning">
+          Du hast keine Berechtigung für den angeforderten Bereich.
+        </p>
+      )}
+      <section className="hero-strip">
+        <div>
+          <span className="eyebrow">Alles an einem Ort</span>
+          <h2>Mehr Überblick. Weniger offene Aufgaben.</h2>
+          <p>Prüfe deine Belege und gleiche Zahlungen ab.</p>
+        </div>
+        <Link className="button" href="/documents">
+          Belege verwalten →
+        </Link>
+      </section>
+      <div className="cards">
+        {[
+          ["Belege gesamt", activeDocuments.length, "/documents"],
+          [
+            "Zur Prüfung",
+            activeDocuments.filter(
+              (d) =>
+                d.review_status === "pending" && d.upload_status === "ready",
+            ).length,
+            "/documents",
+          ],
+          ["Freigegebene Buchungen", totals?.postings, "/ledger"],
+          ["Offene Bankumsätze", totals?.unmatched, "/bank"],
+        ].map(([label, value, href]) => (
+          <Link className="card stat-card" href={String(href)} key={label}>
+            <span>{label}</span>
+            <strong>{value ?? 0}</strong>
+            <small>Alle zugänglichen Daten des Mandanten</small>
+          </Link>
+        ))}
+      </div>
+      <div className="dashboard-grid">
+        <section className="panel">
+          <div className="section-heading">
+            <h2>Nächste Belegprüfungen</h2>
+            <Link href="/documents">Alle Belege →</Link>
+          </div>
+          {docs?.length ? (
+            <ul className="task-list">
+              {docs.map((d) => (
+                <li key={d.id}>
+                  <span>
+                    {d.original_filename}
+                    <small>
+                      {new Date(d.created_at).toLocaleDateString("de-DE")}
+                    </small>
+                  </span>
+                  <span className="badge pending">Zur Prüfung</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="empty-state">
+              <h3>Keine offenen Belegprüfungen</h3>
+              <p>Neue Originale kannst du unter Belege hochladen.</p>
+            </div>
+          )}
+        </section>
+        <section className="panel">
+          <h2>Plattformen</h2>
+          <dl className="summary-list">
+            <div>
+              <dt>Bruttoumsatz erfasst</dt>
+              <dd>{money(decimal(platforms.total.gross))}</dd>
+            </div>
+            <div>
+              <dt>Provisionen erfasst</dt>
+              <dd>{money(decimal(platforms.total.fees))}</dd>
+            </div>
+          </dl>
+          <p className="muted">
+            {platforms.total.count} Abrechnungen über alle Jahre, ohne
+            stornierte Einträge. Plattformwerte sind noch keine freigegebenen
+            Journalbuchungen.
+          </p>
+          <dl className="summary-list">
+            <div>
+              <dt>Erwartete Auszahlungen</dt>
+              <dd>{money(decimal(platforms.total.payout))}</dd>
+            </div>
+            <div>
+              <dt>Erstattungen</dt>
+              <dd>{money(decimal(platforms.total.refunds))}</dd>
+            </div>
+          </dl>
+          {platforms.duplicates.length > 0 && (
+            <p className="warning">
+              {platforms.duplicates.length} Holidu-Buchungen mit mehreren
+              Abrechnungen gefunden. Bitte unter Auswertungen prüfen; Summen
+              können doppelte Werte enthalten.
+            </p>
+          )}
+          <Link href="/finance/platforms">Abrechnungen verwalten →</Link>
+        </section>
+      </div>
+      <section className="panel">
+        <h2>Deine Arbeitsbereiche</h2>
+        <div className="quick-links">
+          <Link href="/ledger">Buchungen und DATEV</Link>
+          <Link href="/bank">Import und Zahlungsabgleich</Link>
+          <Link href="/reports">Kostenstellen und Auswertungen</Link>
+          <Link href="/settings">Sicherheit und Verwaltung</Link>
+        </div>
+      </section>
+    </FinanceShell>
+  );
+}
