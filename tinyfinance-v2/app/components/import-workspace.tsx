@@ -1,7 +1,9 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import PlatformPdfImport from "./platform-pdf-import";
 export default function ImportWorkspace() {
+  const router = useRouter();
   const [key, setKey] = useState("platforms"),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
@@ -31,6 +33,7 @@ export default function ImportWorkspace() {
             });
             const data = await r.json();
             if (!r.ok) throw Error(data.error);
+            router.refresh();
             setMessage(
               data.imported +
                 " Einträge importiert; " +

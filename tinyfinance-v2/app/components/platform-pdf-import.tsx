@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { assignAccommodation } from "@/lib/platform-pdf";
 import { platformSettlementCsv } from "@/lib/platform-csv";
 type Settlement = {
@@ -27,6 +28,7 @@ type Entry = {
   scope?: string;
 };
 export default function PlatformPdfImport() {
+  const router = useRouter();
   const [entries, setEntries] = useState<Entry[]>([]);
   const [centers, setCenters] = useState<Center[]>([]);
   const [busy, setBusy] = useState(false);
@@ -276,6 +278,7 @@ export default function PlatformPdfImport() {
                 });
                 const data = await response.json();
                 if (!response.ok) throw Error(data.error);
+                router.refresh();
                 setMessage(
                   `${data.imported} Abrechnungen importiert; ${data.duplicates} identische Dubletten übersprungen.`,
                 );

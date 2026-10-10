@@ -1,3 +1,5 @@
+import { platformReport } from "@/lib/platform-reporting";
+import Link from "next/link";
 import { pageContext } from "@/lib/access";
 import { allRows, type Row } from "@/lib/data";
 import { permits } from "@/lib/permissions";
@@ -57,10 +59,8 @@ export default async function Reports({
       from,
       to,
     );
-  const selectedPlatforms = platforms.filter(
-    (p) =>
-      p.status !== "cancelled" && p.period_start <= to && p.period_end >= from,
-  );
+  const platformSummary = platformReport(platforms, from, to);
+  const selectedPlatforms = platformSummary.selected;
   const cash = transactions.filter(
     (t) =>
       t.currency === "EUR" &&
@@ -239,6 +239,83 @@ export default async function Reports({
           Arbeitskosten = genehmigte Minuten × hinterlegte Stundenkosten / 60,
           pro Zeitzeile auf Cent gerundet. Nicht zusätzlich als Buchung erfasst.
         </p>
+      </section>
+      <section className="panel">
+        <h2>Plattformabrechnungen je Ferienhaus</h2>
+        <p>
+          Im gewählten Zeitraum: {platformSummary.total.count} Abrechnungen.
+          Stornierte Einträge sind ausgeschlossen. Aufenthalte, die den Zeitraum
+          berühren, zählen vollständig. Diese Werte werden nicht zusätzlich zum
+          Buchungsjournal oder zu Steuerwerten addiert.
+        </p>
+        <Link
+          href={
+            "/reports?from=" +
+            (platforms.map((p) => p.period_start).sort()[0] || from) +
+            "&to=" +
+            (platforms
+              .map((p) => p.period_end)
+              .sort()
+              .at(-1) || to)
+          }
+        >
+          Alle importierten Aufenthalte anzeigen
+        </Link>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Ferienhaus / Kostenstelle</th>
+                <th>Abrechnungen</th>
+                <th>Gastzahlungen</th>
+                <th>Gebühren inkl. USt</th>
+                <th>Erstattungen</th>
+                <th>Erwartete Auszahlungen</th>
+              </tr>
+            </thead>
+            <tbody>
+              {centers.map((c) => {
+                const sums = platformSummary.byCenter.get(c.id) || {
+                  count: 0,
+                  gross: 0,
+                  fees: 0,
+                  refunds: 0,
+                  payout: 0,
+                };
+                return (
+                  <tr key={c.id}>
+                    <td>
+                      {c.code} · {c.name}
+                    </td>
+                    <td>{sums.count}</td>
+                    <td>{moneyCents(sums.gross)}</td>
+                    <td>{moneyCents(sums.fees)}</td>
+                    <td>{moneyCents(sums.refunds)}</td>
+                    <td>{moneyCents(sums.payout)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {platformSummary.duplicates.length > 0 && (
+          <>
+            <h3>Mögliche Holidu-Dubletten · alle Jahre</h3>
+            <p className="warning">
+              Mehrere Abrechnungen für dieselbe Buchung. Es wurde nichts
+              gelöscht. Summen enthalten diese Einträge; Inhalte zuerst
+              vergleichen und überzählige Abrechnungen unter Plattformen
+              stornieren.
+            </p>
+            <ul>
+              {platformSummary.duplicates.map((d) => (
+                <li key={d.booking}>
+                  Buchung {d.booking}: {d.references.join(", ")}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </section>
       <div className="report-grid">
         <section className="panel">

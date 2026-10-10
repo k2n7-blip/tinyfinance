@@ -1,3 +1,6 @@
+import { allRows } from "@/lib/data";
+import { platformReport } from "@/lib/platform-reporting";
+import { decimal } from "@/lib/money";
 import Link from "next/link";
 import { pageContext } from "@/lib/access";
 import { databaseError } from "@/lib/errors";
@@ -14,6 +17,9 @@ export default async function Dashboard({
     org: a.org,
   });
   if (error) databaseError(error);
+  const platforms = platformReport(
+    await allRows(a.client, "platform_settlements", a.org),
+  );
   const { data: org } = await a.client
     .from("organizations")
     .select("name")
@@ -97,16 +103,35 @@ export default async function Dashboard({
           <dl className="summary-list">
             <div>
               <dt>Bruttoumsatz erfasst</dt>
-              <dd>{money(totals?.platform_gross)}</dd>
+              <dd>{money(decimal(platforms.total.gross))}</dd>
             </div>
             <div>
               <dt>Provisionen erfasst</dt>
-              <dd>{money(totals?.platform_fees)}</dd>
+              <dd>{money(decimal(platforms.total.fees))}</dd>
             </div>
           </dl>
           <p className="muted">
-            Summe deiner erfassten Abrechnungen; kein geschätzter Umsatz.
+            {platforms.total.count} Abrechnungen über alle Jahre, ohne
+            stornierte Einträge. Plattformwerte sind noch keine freigegebenen
+            Journalbuchungen.
           </p>
+          <dl className="summary-list">
+            <div>
+              <dt>Erwartete Auszahlungen</dt>
+              <dd>{money(decimal(platforms.total.payout))}</dd>
+            </div>
+            <div>
+              <dt>Erstattungen</dt>
+              <dd>{money(decimal(platforms.total.refunds))}</dd>
+            </div>
+          </dl>
+          {platforms.duplicates.length > 0 && (
+            <p className="warning">
+              {platforms.duplicates.length} Holidu-Buchungen mit mehreren
+              Abrechnungen gefunden. Bitte unter Auswertungen prüfen; Summen
+              können doppelte Werte enthalten.
+            </p>
+          )}
           <Link href="/finance/platforms">Abrechnungen verwalten →</Link>
         </section>
       </div>

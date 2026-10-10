@@ -1,3 +1,4 @@
+import { canonicalPlatformRows } from "@/lib/platform-reporting";
 import { NextRequest, NextResponse } from "next/server";
 import { getContext } from "@/lib/access";
 import { allRows } from "@/lib/data";
@@ -21,7 +22,14 @@ export const POST = route(
     const centers = await allRows(a.client, "cost_centers", a.org);
     const employees =
       key === "time-entries" ? await allRows(a.client, "employees", a.org) : [];
-    const rows = moduleImport(await file.text(), key, centers, employees);
+    const parsed = moduleImport(await file.text(), key, centers, employees);
+    const rows =
+      key === "platforms"
+        ? canonicalPlatformRows(
+            parsed,
+            await allRows(a.client, "platform_settlements", a.org),
+          )
+        : parsed;
     const { data, error } = await a.client.rpc("import_records", {
       org: a.org,
       kind: key,

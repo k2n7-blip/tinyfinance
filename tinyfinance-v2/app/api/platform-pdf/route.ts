@@ -1,3 +1,4 @@
+import { canonicalPlatformRows } from "@/lib/platform-reporting";
 import { NextRequest, NextResponse } from "next/server";
 import { getDocumentProxy } from "unpdf";
 import { holiduBookingsCsv } from "@/lib/holidu-csv";
@@ -38,31 +39,11 @@ export const POST = route(async (req: NextRequest) => {
     )
       throw new AppError(400, "Aktives Ferienhaus auswählen.");
     const existing = await allRows(a.client, "platform_settlements", a.org);
-    const references = new Map<string, string>();
-    for (const row of rows) {
-      if (row.platform !== "Holidu" || !row.booking_reference) continue;
-      const matches = existing.filter(
-        (r) =>
-          r.platform === "Holidu" &&
-          r.booking_reference === row.booking_reference,
-      );
-      if (matches.length > 1)
-        throw new AppError(
-          409,
-          "Mehrere vorhandene Abrechnungen für Buchung " +
-            row.booking_reference +
-            ": gesondert prüfen.",
-        );
-      row.reference =
-        matches.length === 1
-          ? String(matches[0].reference)
-          : references.get(row.booking_reference) || row.reference;
-      references.set(row.booking_reference, row.reference);
-    }
+    const canonical = canonicalPlatformRows(rows, existing);
     const { data, error } = await a.client.rpc("import_records", {
       org: a.org,
       kind: "platforms",
-      rows,
+      rows: canonical,
     });
     if (error) databaseError(error);
     return NextResponse.json(data);
@@ -78,11 +59,13 @@ export const POST = route(async (req: NextRequest) => {
     for (const entry of entries) {
       const suggestion = entry.suggestion;
       if (!suggestion) continue;
-      const matches = existing.filter(
+      const allMatches = existing.filter(
         (r) =>
           r.platform === "Holidu" &&
           r.booking_reference === suggestion.booking_reference,
       );
+      const activeMatches = allMatches.filter((r) => r.status !== "cancelled");
+      const matches = activeMatches.length ? activeMatches : allMatches;
       if (matches.length === 1)
         suggestion.reference = String(matches[0].reference);
       if (matches.length > 1) {
