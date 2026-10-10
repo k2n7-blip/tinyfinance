@@ -33,6 +33,7 @@ export default function DocumentWorkspace({
   const [docs, setDocs] = useState(initial),
     [selected, setSelected] = useState<Doc | null>(null),
     [busy, setBusy] = useState(false),
+    [extracting, setExtracting] = useState(false),
     [message, setMessage] = useState(""),
     [query, setQuery] = useState(""),
     [status, setStatus] = useState(""),
@@ -104,6 +105,7 @@ export default function DocumentWorkspace({
   async function extract(id: string) {
     const r = await fetch("/api/documents/" + id + "/extract", {
       method: "POST",
+      signal: AbortSignal.timeout(90000),
     });
     const x = await r.json();
     if (!r.ok) throw Error(x.error);
@@ -462,35 +464,58 @@ export default function DocumentWorkspace({
                   </select>
                 </label>
               </div>
+              {!canEdit ? (
+                <p className="muted">
+                  Die KI-Erkennung kann nur durch Administratoren oder die
+                  Buchhaltung gestartet werden.
+                </p>
+              ) : !aiEnabled ? (
+                <p className="warning" id="ai-availability">
+                  Die KI-Erkennung ist für diesen Mandanten noch nicht
+                  aktiviert. Öffne{" "}
+                  <Link href="/settings">
+                    Einstellungen → KI-Belegerkennung
+                  </Link>
+                  , setze den Haken und klicke „KI-Einstellung speichern“. Öffne
+                  danach diesen Beleg erneut.
+                </p>
+              ) : null}
               {canEdit && (
                 <div className="row">
                   <button disabled={busy} onClick={save}>
                     Änderungen speichern
                   </button>
-                  {aiEnabled && (
-                    <button
-                      className="secondary"
-                      disabled={busy}
-                      onClick={async () => {
-                        setBusy(true);
-                        try {
-                          const x = await extract(selected.id);
-                          setSelected(x.row);
-                          setMessage(x.notice);
-                        } catch (e) {
-                          setMessage(
-                            e instanceof Error
+                  <button
+                    className="secondary"
+                    disabled={busy || !aiEnabled}
+                    onClick={async () => {
+                      setBusy(true);
+                      setExtracting(true);
+                      setMessage(
+                        "Beleg wird ausgelesen … Das kann bis zu einer Minute dauern.",
+                      );
+                      try {
+                        const x = await extract(selected.id);
+                        setSelected(x.row);
+                        setMessage(x.notice);
+                      } catch (e) {
+                        setMessage(
+                          e instanceof Error &&
+                            (e.name === "TimeoutError" ||
+                              e.name === "AbortError")
+                            ? "Die Erkennung hat zu lange gedauert. Bitte neu laden und den Belegstatus prüfen."
+                            : e instanceof Error
                               ? e.message
                               : "KI fehlgeschlagen.",
-                          );
-                        } finally {
-                          setBusy(false);
-                        }
-                      }}
-                    >
-                      KI-Erkennung
-                    </button>
-                  )}
+                        );
+                      } finally {
+                        setExtracting(false);
+                        setBusy(false);
+                      }
+                    }}
+                  >
+                    {extracting ? "Erkennung läuft …" : "KI-Erkennung"}
+                  </button>
                   {selected.review_status === "reviewed" && (
                     <Link
                       className="button secondary"
@@ -501,6 +526,9 @@ export default function DocumentWorkspace({
                   )}
                 </div>
               )}
+              <p className="feedback" role="status">
+                {message || selected.extraction_error}
+              </p>
               {selected.extraction_suggestion?.fields && (
                 <section className="suggestion">
                   <h3>KI-Vorschlag · noch ungeprüft</h3>
@@ -568,9 +596,11 @@ export default function DocumentWorkspace({
           </ul>
         </section>
       )}
-      <p className="feedback" role="status">
-        {message}
-      </p>
+      {!selected && (
+        <p className="feedback" role="status">
+          {message}
+        </p>
+      )}
     </>
   );
 }

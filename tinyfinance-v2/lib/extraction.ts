@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError, databaseError } from "./errors";
 import { date, amount } from "./modules";
+import { aiProviderMessage } from "./ai-errors";
 const suggestionSchema = z
   .object({
     vendor: z.string().max(200).nullable(),
@@ -103,11 +104,18 @@ export async function extractDocument(
       }),
       signal: AbortSignal.timeout(50000),
     });
-    if (!response.ok)
+    if (!response.ok) {
+      const failure = await response.json().catch(() => null);
       throw new AppError(
         502,
-        "Der KI-Anbieter konnte den Beleg nicht verarbeiten.",
+        aiProviderMessage(
+          response.status,
+          typeof failure?.error?.code === "string"
+            ? failure.error.code
+            : undefined,
+        ),
       );
+    }
     const result = await response.json();
     const output = (result.output || [])
       .flatMap((o: any) => o.content || [])
@@ -141,20 +149,27 @@ export async function extractDocument(
       );
     return saved;
   } catch (error) {
+    const failure =
+      error instanceof AppError
+        ? error
+        : new AppError(
+            502,
+            error instanceof Error &&
+              (error.name === "TimeoutError" || error.name === "AbortError")
+              ? "Die KI-Erkennung hat zu lange gedauert. Bitte später erneut versuchen."
+              : error instanceof TypeError
+                ? "Der KI-Anbieter konnte nicht erreicht werden. Bitte die Verbindung prüfen und später erneut versuchen."
+                : "KI lieferte keine gültigen Belegdaten. Bitte manuell prüfen.",
+          );
     await client
       .from("documents")
       .update({
         extraction_status: "failed",
-        extraction_error:
-          "Erkennung fehlgeschlagen. Bitte manuell erfassen oder erneut versuchen.",
+        extraction_error: failure.message,
       })
       .eq("id", id)
       .eq("organization_id", org)
       .eq("version", claimed.version);
-    if (error instanceof AppError) throw error;
-    throw new AppError(
-      502,
-      "KI lieferte keine gültigen Belegdaten. Bitte manuell prüfen.",
-    );
+    throw failure;
   }
 }

@@ -16,8 +16,10 @@ Einrichtungsfehler unterscheiden jetzt fehlende Umgebungswerte von fehlenden Dat
 
 KI-Opt-in wird separat von DATEV-Einstellungen gespeichert; Berater- und Mandantennummer sind dafür nicht erforderlich. Versionsprüfung und Administrator-MFA bleiben erforderlich.
 
+Der KI-Button bleibt bei deaktivierter Erkennung sichtbar und erklärt die fehlende Aktivierung. Fortschritt und Anbieterfehler erscheinen direkt am Beleg; Fehlermeldungen unterscheiden Schlüssel, Berechtigung, Guthaben und Anfragelimit, ohne Anbieter-Rohdaten auszugeben.
+
 ## Automatisiert geprüft
-33 fachliche Tests: exakte Geldbeträge, Pflichtfelder und Null-USt, Berechtigungsmodell, Importspezifika und Fehlerfälle, DATEV-Formatvalidierung und Storno, Kostenstellenaufteilung, Zins-/Kreditprognosen und offene Posten.
+35 fachliche Tests: exakte Geldbeträge, Pflichtfelder und Null-USt, Berechtigungsmodell, Importspezifika und Fehlerfälle, DATEV-Formatvalidierung und Storno, Kostenstellenaufteilung, Zins-/Kreditprognosen und offene Posten.
 42 PostgreSQL-17-Assertions wenden alle tatsächlichen Migrationen außer 002 an: Organisationsgrenzen, Rollen, Administrator-MFA-Claims, private/Personal- und Storage-Policies, Originalschutz, Audit-Manipulation, Versionskonflikte, Freigabe/Storno, Abgleiche, idempotente und atomare Importe sowie ungültige Zahlen.
 Zwei Chromium-Smoke-Tests prüfen die fehlende Konfiguration, gesperrte Finanz-APIs, Ursprungskontrolle und Smartphone-Layout. Sie prüfen keine angemeldeten Finanzabläufe.
 TypeScript und Produktionsbuild erfolgreich. Aktueller npm-Audit der Produktionsabhängigkeiten ohne bekannte Schwachstellen nach PostCSS-Override.
