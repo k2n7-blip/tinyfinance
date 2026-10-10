@@ -1,11 +1,13 @@
 "use client";
 import { useState } from "react";
+import PlatformPdfImport from "./platform-pdf-import";
 export default function ImportWorkspace() {
   const [key, setKey] = useState("platforms"),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
   return (
     <section className="panel">
+      <PlatformPdfImport />
       <h2>Geprüfte CSV importieren</h2>
       <p>
         Verwende die heruntergeladene Vorlage und Semikolon als Trennzeichen.

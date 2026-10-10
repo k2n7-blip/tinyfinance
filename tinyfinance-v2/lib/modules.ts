@@ -151,7 +151,7 @@ export const modules: Record<string, Module> = {
     "Betrieb",
     "platform_settlements",
     "read",
-    "Bruttoumsatz, Provision, Erstattung und Auszahlung getrennt erfassen. CSV-Import ohne behauptete API-Anbindung.",
+    "Bruttoumsatz, Provision, Erstattung und Auszahlung getrennt erfassen. CSV-Import und geprüfter Holidu-PDF-Import unter Dateiimporte.",
     [
       f("platform", "Plattform", "select", true, [
         "Holidu",
