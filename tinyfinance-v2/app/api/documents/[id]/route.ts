@@ -1,3 +1,70 @@
-import {NextRequest,NextResponse} from 'next/server';import {context} from '@/lib/access';
-export async function GET(_req:NextRequest,{params}:{params:Promise<{id:string}>}){const a=await context();if(!a)return NextResponse.json({error:'Nicht berechtigt'},{status:403});const {id}=await params;const {data:d,error}=await a.client.from('documents').select('storage_path,mime_type,original_filename').eq('id',id).eq('organization_id',a.org).single();if(error||!d)return NextResponse.json({error:'Beleg nicht gefunden'},{status:404});const {data,error:storageError}=await a.client.storage.from('documents').download(d.storage_path);if(storageError||!data)return NextResponse.json({error:'Datei nicht lesbar'},{status:500});return new NextResponse(await data.arrayBuffer(),{headers:{'Content-Type':d.mime_type,'Content-Disposition':`inline; filename="${d.original_filename.replace(/["\r\n]/g,'_')}"`,'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}})}
-export async function PATCH(req:NextRequest,{params}:{params:Promise<{id:string}>}){const a=await context(true);if(!a)return NextResponse.json({error:'Nicht berechtigt'},{status:403});const {id}=await params;const body=await req.json();const allowed=['vendor','invoice_number','invoice_date','gross_amount','cost_center_id','review_status'];const patch:Record<string,unknown>={};for(const key of allowed)if(Object.prototype.hasOwnProperty.call(body,key))patch[key]=body[key]||null;if(patch.review_status&&!['pending','reviewed','rejected'].includes(String(patch.review_status)))return NextResponse.json({error:'Ungültiger Status'},{status:400});if(patch.gross_amount!==undefined&&patch.gross_amount!==null&&(!Number.isFinite(Number(patch.gross_amount))||Math.abs(Number(patch.gross_amount))>1e10))return NextResponse.json({error:'Ungültiger Betrag'},{status:400});if(patch.cost_center_id){const {data:c}=await a.client.from('cost_centers').select('id').eq('id',patch.cost_center_id).eq('organization_id',a.org).maybeSingle();if(!c)return NextResponse.json({error:'Kostenstelle nicht gefunden'},{status:400})}const {data,error}=await a.client.from('documents').update(patch).eq('id',id).eq('organization_id',a.org).select('id').single();return NextResponse.json(error?{error:error.message}:{ok:true,data},{status:error?400:200})}
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { getContext } from "@/lib/access";
+import { documentSchema } from "@/lib/modules";
+import { AppError, databaseError } from "@/lib/errors";
+import { jsonBody, route } from "@/lib/http";
+type Params = { params: Promise<{ id: string }> };
+export const GET = route(async (_req: NextRequest, { params }: Params) => {
+  const a = await getContext();
+  const id = z
+    .string()
+    .uuid()
+    .parse((await params).id);
+  const { data: doc, error } = await a.client
+    .from("documents")
+    .select("storage_path,mime_type,original_filename")
+    .eq("id", id)
+    .eq("organization_id", a.org)
+    .eq("upload_status", "ready")
+    .single();
+  if (error || !doc) throw new AppError(404, "Beleg nicht verfügbar.");
+  const { data, error: storageError } = await a.client.storage
+    .from("documents")
+    .download(doc.storage_path);
+  if (storageError || !data)
+    throw new AppError(404, "Original nicht verfügbar.");
+  return new NextResponse(await data.arrayBuffer(), {
+    headers: {
+      "Content-Type": doc.mime_type,
+      "Content-Disposition":
+        "inline; filename*=UTF-8''" + encodeURIComponent(doc.original_filename),
+      "X-Content-Type-Options": "nosniff",
+      "Content-Security-Policy": "sandbox; default-src 'none'",
+    },
+  });
+});
+export const PATCH = route(async (req: NextRequest, { params }: Params) => {
+  const a = await getContext("write");
+  const id = z
+    .string()
+    .uuid()
+    .parse((await params).id);
+  const { version, ...patch } = documentSchema.parse(await jsonBody(req));
+  if (patch.cost_center_id) {
+    const { data } = await a.client
+      .from("cost_centers")
+      .select("id")
+      .eq("id", patch.cost_center_id)
+      .eq("organization_id", a.org)
+      .eq("active", true)
+      .maybeSingle();
+    if (!data)
+      throw new AppError(400, "Kostenstelle ungültig oder deaktiviert.");
+  }
+  const { data, error } = await a.client
+    .from("documents")
+    .update(patch)
+    .eq("id", id)
+    .eq("organization_id", a.org)
+    .eq("version", version)
+    .select("*")
+    .maybeSingle();
+  if (error) databaseError(error);
+  if (!data)
+    throw new AppError(
+      409,
+      "Beleg wurde inzwischen geändert. Bitte neu laden.",
+    );
+  return NextResponse.json({ row: data });
+});

@@ -1,3 +1,43 @@
-import {NextRequest,NextResponse} from 'next/server';import {createHash} from 'crypto';import {currentUser} from '@/lib/supabase';
-function parseCSV(s:string){const lines=s.replace(/^\uFEFF/,'').trim().split(/\r?\n/);const sep=lines[0]?.includes(';')?';':',';return lines.map(line=>{let out:string[]=[],value='',quoted=false;for(let i=0;i<line.length;i++){const c=line[i];if(c==='"'){if(quoted&&line[i+1]==='"'){value+='"';i++}else quoted=!quoted}else if(c===sep&&!quoted){out.push(value);value=''}else value+=c}out.push(value);return out})}
-export async function POST(req:NextRequest){const {client,user}=await currentUser();if(!user)return NextResponse.json({error:'Nicht angemeldet'},{status:401});const {data:m}=await client.from('memberships').select('organization_id').eq('user_id',user.id).in('role',['owner','bookkeeper']).limit(1).maybeSingle();if(!m)return NextResponse.json({error:'Kein Zugriff'},{status:403});const f=(await req.formData()).get('file');if(!(f instanceof File)||f.size>1024*1024)return NextResponse.json({error:'CSV bis 1 MB erforderlich'},{status:400});const rows=parseCSV(await f.text());if(rows.length>2001)return NextResponse.json({error:'Maximal 2000 Zeilen'},{status:400});const header=rows.shift()?.map(s=>s.trim().toLowerCase())||[];const keys=['datum','betrag','verwendungszweck','gegenpartei','referenz'];if(keys.some(k=>!header.includes(k)))return NextResponse.json({error:'Spalten: Datum;Betrag;Verwendungszweck;Gegenpartei;Referenz'},{status:400});const values=[];for(const row of rows){if(row.length!==header.length||row.every(x=>!x.trim()))continue;const val=(k:string)=>row[header.indexOf(k)]?.trim()||'';const date=val('datum');const raw=val('betrag');const amount=Number(raw.replace(/\./g,'').replace(',','.'));if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!Number.isFinite(amount)||Math.abs(amount)>100000000)return NextResponse.json({error:'Ungültiges Datum (YYYY-MM-DD) oder Betrag'},{status:400});const ref=val('referenz')||createHash('sha256').update(row.join('|')).digest('hex');values.push({organization_id:m.organization_id,booked_on:date,amount,counterparty:val('gegenpartei'),purpose:val('verwendungszweck'),source_reference:ref})}if(values.length){const {error}=await client.from('bank_transactions').upsert(values,{onConflict:'organization_id,source_reference',ignoreDuplicates:true});if(error)return NextResponse.json({error:error.message},{status:500})}return NextResponse.redirect(new URL('/dashboard',req.url),303)}
+import { NextRequest, NextResponse } from "next/server";
+import { createHash } from "node:crypto";
+import { z } from "zod";
+import iconv from "iconv-lite";
+import { getContext } from "@/lib/access";
+import { parseBank } from "@/lib/imports";
+import { AppError, databaseError } from "@/lib/errors";
+import { route } from "@/lib/http";
+export const POST = route(async (req: NextRequest) => {
+  const a = await getContext("write");
+  if (Number(req.headers.get("content-length") || 0) > 2_500_000)
+    throw new AppError(413, "Datei zu groß.");
+  const form = await req.formData();
+  const account = z.string().uuid().parse(form.get("bank_account_id"));
+  const file = form.get("file");
+  if (!(file instanceof File) || file.size > 2_000_000)
+    throw new AppError(400, "CSV, CAMT.053 oder MT940 bis 2 MB erforderlich.");
+  const { data: bank, error: bankError } = await a.client
+    .from("bank_accounts")
+    .select("*")
+    .eq("id", account)
+    .eq("organization_id", a.org)
+    .eq("active", true)
+    .single();
+  if (bankError || !bank) throw new AppError(403, "Konto nicht verfügbar.");
+  const bytes = Buffer.from(await file.arrayBuffer());
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    text = iconv.decode(bytes, "windows-1252");
+  }
+  const rows = parseBank(text, file.name, bank.currency, bank.iban_last4);
+  const { data, error } = await a.client.rpc("import_bank", {
+    org: a.org,
+    account,
+    filename: file.name,
+    file_hash: createHash("sha256").update(bytes).digest("hex"),
+    rows,
+  });
+  if (error) databaseError(error);
+  return NextResponse.json(data);
+});
