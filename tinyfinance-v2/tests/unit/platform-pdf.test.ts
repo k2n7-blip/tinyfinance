@@ -57,3 +57,56 @@ test("PDF reading order reconstructs labels, amounts and superscript footnotes",
     "Vom Gast gezahlter Gesamtbetrag 6 € 397,64\nNetto-Auszahlung € 307,87",
   );
 });
+
+import {
+  holiduAccommodation,
+  assignAccommodation,
+} from "../../lib/platform-pdf";
+test("Holidu accommodation IDs and exact names enable unambiguous assignment", () => {
+  const accommodation = holiduAccommodation(
+    "ID, name der Unterkunft: 1234, Lodge Check-in/out: 01.01.2026",
+  );
+  assert.deepEqual(accommodation, { id: "1234", name: "Lodge" });
+  const centers = [
+    { id: "a", code: "1234", name: "Lodge" },
+    { id: "b", code: "other", name: "Other" },
+  ];
+  assert.equal(assignAccommodation(accommodation, centers, {}), "a");
+  assert.equal(
+    assignAccommodation(accommodation, centers, { "1234": "b" }),
+    "b",
+  );
+  assert.equal(
+    assignAccommodation({ id: "unknown", name: "missing" }, centers, {}),
+    "",
+  );
+  assert.equal(
+    assignAccommodation(
+      { id: "unknown", name: "Lodge" },
+      [...centers, { id: "c", code: "c", name: "Lodge" }],
+      {},
+    ),
+    "",
+  );
+  assert.equal(
+    assignAccommodation(accommodation, centers, { "1234": "deleted" }),
+    "a",
+  );
+});
+
+import { platformSettlementCsv } from "../../lib/platform-csv";
+import { moduleImport } from "../../lib/module-imports";
+test("Exported settlement CSV round trips through existing import with cents and empty optional nights", () => {
+  const row = holiduSettlement(example);
+  const center = {
+    id: "11111111-1111-4111-8111-111111111111",
+    code: "HOUSE1",
+    active: true,
+  };
+  const csv = platformSettlementCsv([
+    { ...row, cost_center_code: center.code },
+  ]);
+  assert.deepEqual(moduleImport(csv, "platforms", [center], []), [
+    { ...row, cost_center_id: center.id },
+  ]);
+});

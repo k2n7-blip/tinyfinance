@@ -5,25 +5,38 @@ import { getContext } from "@/lib/access";
 import { allRows } from "@/lib/data";
 import { AppError, databaseError } from "@/lib/errors";
 import { route, jsonBody } from "@/lib/http";
-import { holiduSettlement } from "@/lib/platform-pdf";
+import { holiduSettlement, holiduAccommodation } from "@/lib/platform-pdf";
+import { z } from "zod";
 import { modules } from "@/lib/modules";
 export const runtime = "nodejs";
 export const POST = route(async (req: NextRequest) => {
   const a = await getContext("write");
   if (req.headers.get("content-type")?.includes("application/json")) {
-    const row = modules.platforms.schema.parse(await jsonBody(req));
-    if (row.status !== "draft")
+    const body = await jsonBody(req);
+    const rows = z
+      .array(modules.platforms.schema)
+      .min(1)
+      .max(200)
+      .parse(Array.isArray(body) ? body : [body]);
+    if (rows.some((row) => row.status !== "draft"))
       throw new AppError(
         400,
         "PDF-Import muss als Entwurf gespeichert werden.",
       );
     const centers = await allRows(a.client, "cost_centers", a.org);
-    if (!centers.some((c) => c.id === row.cost_center_id && c.active !== false))
+    if (
+      rows.some(
+        (row) =>
+          !centers.some(
+            (c) => c.id === row.cost_center_id && c.active !== false,
+          ),
+      )
+    )
       throw new AppError(400, "Aktives Ferienhaus auswählen.");
     const { data, error } = await a.client.rpc("import_records", {
       org: a.org,
       kind: "platforms",
-      rows: [row],
+      rows,
     });
     if (error) databaseError(error);
     return NextResponse.json(data);
@@ -48,6 +61,8 @@ export const POST = route(async (req: NextRequest) => {
   }
   return NextResponse.json({
     suggestion: holiduSettlement(text),
+    accommodation: holiduAccommodation(text),
+    mappingScope: a.org + ":" + a.user.id,
     centers: await allRows(a.client, "cost_centers", a.org),
   });
 });

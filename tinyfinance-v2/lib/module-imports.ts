@@ -1,23 +1,10 @@
+import { platformCsvHeaders } from "./platform-csv";
 import { csvRows, germanAmount } from "./imports";
 import { modules } from "./modules";
 import { AppError } from "./errors";
 import type { Row } from "./data";
 export const importHeaders: Record<string, string[]> = {
-  platforms: [
-    "Plattform",
-    "Abrechnungsreferenz",
-    "Buchungsreferenz",
-    "Kostenstellennummer",
-    "Von",
-    "Bis",
-    "Bruttoumsatz",
-    "Provision",
-    "Erstattungen",
-    "Auszahlung",
-    "Bankreferenz",
-    "Übernachtungen",
-    "Verfügbare Nächte",
-  ],
+  platforms: platformCsvHeaders,
   "time-entries": [
     "TinyTeam-ID",
     "Datum",

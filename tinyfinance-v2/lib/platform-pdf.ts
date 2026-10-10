@@ -72,3 +72,30 @@ export function holiduSettlement(text: string) {
     status: "draft" as const,
   };
 }
+
+export function holiduAccommodation(text: string) {
+  const match = text
+    .replace(/\s+/g, " ")
+    .match(
+      /ID, name der Unterkunft:\s*(\d+),\s*(.*?)\s+(?:Check-in\/out:|Einheiten-ID\(s\):)/,
+    );
+  return { id: match?.[1] || "", name: match?.[2]?.trim() || "" };
+}
+export function assignAccommodation(
+  accommodation: { id: string; name: string },
+  centers: { id: string; name: string; code: string }[],
+  remembered: Record<string, string>,
+) {
+  const saved =
+    accommodation.id &&
+    centers.find((c) => c.id === remembered[accommodation.id]);
+  if (saved) return saved.id;
+  const candidates = centers.filter(
+    (c) =>
+      (accommodation.id && c.code === accommodation.id) ||
+      (accommodation.name &&
+        c.name.trim().toLowerCase() ===
+          accommodation.name.trim().toLowerCase()),
+  );
+  return candidates.length === 1 ? candidates[0].id : "";
+}
