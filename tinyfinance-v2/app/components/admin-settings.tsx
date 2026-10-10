@@ -19,8 +19,13 @@ export default function AdminSettings({
       payroll_access: false,
     }),
     [message, setMessage] = useState(""),
+    [aiMessage, setAiMessage] = useState(""),
     [busy, setBusy] = useState(false);
   async function send(url: string, method: string, body: Row) {
+    const aiOnly =
+      url === "/api/settings" && "ai_enabled" in body && !("framework" in body);
+    if (aiOnly) setAiMessage("");
+    else setMessage("");
     setBusy(true);
     try {
       const r = await fetch(url, {
@@ -30,17 +35,66 @@ export default function AdminSettings({
       });
       const x = await r.json();
       if (!r.ok) throw Error(x.error);
-      if (x.row) setSettings(x.row);
-      setMessage("Gespeichert.");
+      if (x.row)
+        setSettings((previous: Row) => ({
+          ...previous,
+          ...Object.fromEntries(
+            Object.keys(body)
+              .filter((key) => key in x.row)
+              .map((key) => [key, x.row[key]]),
+          ),
+          record_version: x.row.record_version,
+        }));
+      if (aiOnly) setAiMessage("KI-Einstellung gespeichert.");
+      else setMessage("Gespeichert.");
       router.refresh();
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Speichern fehlgeschlagen.");
+      const error =
+        e instanceof Error ? e.message : "Speichern fehlgeschlagen.";
+      if (aiOnly) setAiMessage(error);
+      else setMessage(error);
     } finally {
       setBusy(false);
     }
   }
   return (
     <>
+      <section className="panel">
+        <h2>KI-Belegerkennung</h2>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            send("/api/settings", "PATCH", {
+              ai_enabled: settings.ai_enabled,
+              record_version: settings.record_version,
+            });
+          }}
+        >
+          <label className="checkbox">
+            <input
+              type="checkbox"
+              checked={settings.ai_enabled}
+              onChange={(e) =>
+                setSettings({ ...settings, ai_enabled: e.target.checked })
+              }
+            />
+            KI-Erkennung durch externen Anbieter für diesen Mandanten erlauben
+          </label>
+          <p className="muted">
+            Originale werden bei einer Erkennung an den konfigurierten Anbieter
+            übermittelt. API-Schlüssel ausschließlich serverseitig in den
+            Umgebungseinstellungen hinterlegen.
+          </p>
+          <p className="muted">
+            Diese Einstellung benötigt keine DATEV-Berater- oder
+            Mandantennummer. Die API-Nutzung kann Kosten verursachen.
+          </p>
+          <button disabled={busy}>KI-Einstellung speichern</button>
+          <p className="feedback" role="status">
+            {aiMessage}
+          </p>
+        </form>
+      </section>
       <section className="panel">
         <h2>Buchhaltung und Übergabe</h2>
         <form
@@ -57,7 +111,6 @@ export default function AdminSettings({
                   "fiscal_year_start",
                   "account_length",
                   "datev_test_import_confirmed",
-                  "ai_enabled",
                   "record_version",
                 ].map((k) => [k, settings[k]]),
               ),
@@ -142,21 +195,6 @@ export default function AdminSettings({
           <p className="muted">
             Diese Bestätigung wird protokolliert. Ohne sie sind ausschließlich
             Testexporte möglich.
-          </p>
-          <label className="checkbox">
-            <input
-              type="checkbox"
-              checked={settings.ai_enabled}
-              onChange={(e) =>
-                setSettings({ ...settings, ai_enabled: e.target.checked })
-              }
-            />
-            KI-Erkennung durch externen Anbieter für diesen Mandanten erlauben
-          </label>
-          <p className="muted">
-            Originale werden bei einer Erkennung an den konfigurierten Anbieter
-            übermittelt. API-Schlüssel ausschließlich serverseitig in den
-            Umgebungseinstellungen hinterlegen.
           </p>
           <button disabled={busy}>Einstellungen speichern</button>
         </form>
