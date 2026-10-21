@@ -1,5 +1,5 @@
-import {NextRequest,NextResponse} from 'next/server';
-import {currentUser} from '@/lib/supabase';
-async function context(){const {client,user}=await currentUser();if(!user)return {client,organization:null};const {data}=await client.from('memberships').select('organization_id,role').eq('user_id',user.id).in('role',['owner','bookkeeper']).limit(1).maybeSingle();return {client,organization:data?.organization_id??null}}
-export async function POST(req:NextRequest){const {client,organization}=await context();if(!organization)return NextResponse.json({error:'Kein Schreibzugriff'},{status:403});const body=await req.json().catch(()=>null);const code=String(body?.code??'').trim(),name=String(body?.name??'').trim();if(!/^[a-zA-Z0-9_-]{1,20}$/.test(code)||!name||name.length>120)return NextResponse.json({error:'Ungültige Eingabe'},{status:400});const {data,error}=await client.from('cost_centers').insert({organization_id:organization,code,name,active:true}).select('id,code,name,active').single();return error?NextResponse.json({error:error.message},{status:400}):NextResponse.json({center:data})}
-export async function PATCH(req:NextRequest){const {client,organization}=await context();if(!organization)return NextResponse.json({error:'Kein Schreibzugriff'},{status:403});const body=await req.json().catch(()=>null);if(typeof body?.id!=='string'||typeof body?.active!=='boolean')return NextResponse.json({error:'Ungültige Eingabe'},{status:400});const {data,error}=await client.from('cost_centers').update({active:body.active}).eq('id',body.id).eq('organization_id',organization).select('id,code,name,active').single();return error?NextResponse.json({error:error.message},{status:400}):NextResponse.json({center:data})}
+import { POST as create, PATCH as update } from "../modules/[module]/route";
+import { NextRequest } from "next/server";
+const params = { params: Promise.resolve({ module: "cost-centers" }) };
+export const POST = (req: NextRequest) => create(req, params);
+export const PATCH = (req: NextRequest) => update(req, params);
