@@ -4,9 +4,9 @@ import type {Snapshot,SourceSheet} from '@/lib/rental-import';
 type Import={id:string;year:number;filename:string;payload:{rows:Snapshot[];sheets?:SourceSheet[];warnings?:string[]}};
 const money=(v:number|null)=>v===null?'offen':new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(v);
 const columnName=(n:number):string=>n>26?columnName(Math.floor((n-1)/26))+String.fromCharCode(65+(n-1)%26):String.fromCharCode(64+n);
-export default function RentalYearView({imports}:{imports:Import[]}){
+export default function RentalYearView({imports,initialYear,initialSheet,initialRow=1}:{imports:Import[];initialYear?:number;initialSheet?:string;initialRow?:number}){
  const years=[...new Set(imports.map(i=>i.year))].sort((a,b)=>b-a);
- const [year,setYear]=useState(years[0]||2024),[tab,setTab]=useState('overview'),[sheetName,setSheetName]=useState(''),[page,setPage]=useState(0),[formulas,setFormulas]=useState(false);
+ const [year,setYear]=useState(years.includes(initialYear||0)?initialYear!:years[0]||2024),[tab,setTab]=useState(initialSheet?'source':'overview'),[sheetName,setSheetName]=useState(initialSheet||''),[page,setPage]=useState(()=>{const sheet=imports.find(i=>i.year===initialYear)?.payload.sheets?.find(s=>s.name===initialSheet);return Math.floor(Math.max(0,sheet?.rows.findIndex(r=>r.row>=initialRow)||0)/40);}),[formulas,setFormulas]=useState(false);
  const selected=imports.find(i=>i.year===year),rows=selected?.payload.rows||[],sheets=selected?.payload.sheets||[];
  const sheet=sheets.find(s=>s.name===sheetName)||sheets[0];
  const maxColumn=Math.max(1,...(sheet?.rows.flatMap(r=>r.cells.map(c=>c.column))||[]));
