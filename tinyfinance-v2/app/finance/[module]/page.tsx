@@ -1,3 +1,4 @@
+import LoanPlanner from '@/app/components/loan-planner';
 import {excelRecords} from '@/lib/excel-records';
 import ExcelRecordsView from '@/app/components/excel-records-view';
 import { meterConsumption } from "@/lib/meter-consumption";
@@ -127,6 +128,7 @@ export default async function ModulePage({
       )}
       {key === "properties" && excelObjects.length > 0 && <section className="panel"><h2>Immobilien aus deinen Excel-Jahren</h2><p>Historische Quellübersichten wurden übernommen. Kaufdaten, Eigentumsanteile und Nutzungsarten werden daraus nicht geraten; die vollständigen Objektstammdaten kannst du darunter ergänzen.</p><p><a href="/rental">Alle Jahresübersichten 2022–2025 ansehen</a></p><div className="table-wrap"><table><thead><tr><th>Objekt laut Excel</th><th>Vorhandene Jahre</th></tr></thead><tbody>{excelObjects.map(name => <tr key={name}><td>{name}</td><td>{excelHistory.filter(batch => batch.payload?.rows?.some((r:any) => r.property_name === name)).map(batch => batch.year).sort().join(", ")}</td></tr>)}</tbody></table></div></section>}
       {excelHistory.length > 0 && <ExcelRecordsView kind={key} records={excelRecords(excelHistory as any)}/>}
+      {key === "loans" && <LoanPlanner today={new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())} seeds={Array.from(new Map(excelRecords((excelHistory as any).sort((a:any,b:any)=>a.year-b.year)).loans.map(l=>{const name=l.description.replace(/\([^)]*\)/g,'').replace(/^-\s*/,'').trim();const key=l.lender+':'+name;return [key,{key,name,balance:l.balance,payment:l.payment||0,interest:l.interest,source:l.source.filename+' · '+l.as_of}];})).values()).concat((data||[]).map(l=>({key:'loan:'+l.id,name:l.lender+' · '+(choices.properties?.find(p=>p.id===l.property_id)?.label||'Kredit'),balance:Number(l.balance)||0,payment:Number(l.monthly_payment)||0,interest:null,source:'Gespeicherter Kredit – aktuellen Stichtag und Sollzins bestätigen'})))}/>}
       <ModuleWorkspace
         moduleKey={key}
         title={mod.title}
