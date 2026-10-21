@@ -95,6 +95,8 @@ export default async function ModulePage({
         .join(" · "),
     }));
   }
+  const excelHistory = key === "properties" ? await allRows(a.client,"rental_imports",a.org) : [];
+  const excelObjects = Array.from(new Set(excelHistory.flatMap(batch => (batch.payload?.rows || []).filter((r:any) => /^(Kammberg |Fuchskuhle |Schulendammer Weg |Am Mühlenbach )/.test(r.property_name)).map((r:any) => String(r.property_name))))).sort() as string[];
   return (
     <FinanceShell
       title={mod.title}
@@ -121,6 +123,7 @@ export default async function ModulePage({
           <a href="/finance/meter-readings">Zählerstände</a>
         </nav>
       )}
+      {key === "properties" && excelObjects.length > 0 && <section className="panel"><h2>Immobilien aus deinen Excel-Jahren</h2><p>Historische Quellübersichten wurden übernommen. Kaufdaten, Eigentumsanteile und Nutzungsarten werden daraus nicht geraten; die vollständigen Objektstammdaten kannst du darunter ergänzen.</p><p><a href="/rental">Alle Jahresübersichten 2022–2025 ansehen</a></p><div className="table-wrap"><table><thead><tr><th>Objekt laut Excel</th><th>Vorhandene Jahre</th></tr></thead><tbody>{excelObjects.map(name => <tr key={name}><td>{name}</td><td>{excelHistory.filter(batch => batch.payload?.rows?.some((r:any) => r.property_name === name)).map(batch => batch.year).sort().join(", ")}</td></tr>)}</tbody></table></div></section>}
       <ModuleWorkspace
         moduleKey={key}
         title={mod.title}
