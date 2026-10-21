@@ -16,4 +16,10 @@ for migration in supabase/0*.sql; do
   echo "Applying $migration"
   docker exec -i "$test_container" psql -U postgres -v ON_ERROR_STOP=1 < "$migration" >/dev/null
 done
+for migration in supabase/migrations/*.sql; do
+  echo "Applying $migration"
+  docker exec -i "$test_container" psql -U postgres -v ON_ERROR_STOP=1 < "$migration" >/dev/null
+done
 docker exec -i "$test_container" psql -U postgres -v ON_ERROR_STOP=1 < tests/database/rls.sql
+docker exec -i "$test_container" psql -U postgres -v ON_ERROR_STOP=1 < tests/database/unified-features.sql
+

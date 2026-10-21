@@ -40,7 +40,7 @@ export default function FinanceShell({
             <Link href="/documents">Belege</Link>
             <Link href="/ledger">Buchungsjournal</Link>
             <Link href="/bank">Bankabgleich</Link>
-            <Link href="/reports">Auswertungen</Link>
+            <Link href="/reports">Auswertungen</Link><Link href="/search">Globale Suche</Link><Link href="/holidu">Holidu · Sammelbuchung</Link>{permits(role,"private",privateAccess,payrollAccess)&&<Link href="/rental">Excel-Jahre & Versorger</Link>}{permits(role,"payroll",privateAccess,payrollAccess)&&<Link href="/personnel">Personal & TinyTeam</Link>}
             {["Betrieb", "Buchhaltung", "Privat", "Personal"].map((group) => (
               <details key={group} open={group === "Betrieb"}>
                 <summary>{group}</summary>
@@ -70,6 +70,7 @@ export default function FinanceShell({
             <h1>{title}</h1>
             {subtitle && <p className="muted">{subtitle}</p>}
           </div>
+          <Link href="/search" className="settings-link">Suchen</Link>
           <Link
             className="settings-link"
             href="/settings"
@@ -83,3 +84,4 @@ export default function FinanceShell({
     </div>
   );
 }
+

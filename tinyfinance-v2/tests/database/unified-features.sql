@@ -1,0 +1,26 @@
+reset role;
+set request.jwt.claims='{"sub":"11111111-1111-4111-8111-111111111111","aal":"aal2"}';
+set role authenticated;
+select assert_true((import_tinyteam_times('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','[{"personnel":"99","name":"Import Test","date":"2026-09-01","minutes":60,"source_id":"tinyteam-v13:99991","cost_center_id":"10000000-0000-4000-8000-000000000001"}]')->>'imported')::int=1,'TinyTeam import works with real schema');
+select assert_true((import_tinyteam_times('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','[{"personnel":"99","name":"Import Test","date":"2026-09-01","minutes":60,"source_id":"tinyteam-v13:99991","cost_center_id":"10000000-0000-4000-8000-000000000001"}]')->>'skipped')::int=1,'TinyTeam repeat skips');
+select assert_true((select approval_status from time_entries where source_id='tinyteam-v13:99991')='pending','Native completed export does not imply payroll approval');
+select expect_error($q$select import_tinyteam_times('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','[{"personnel":"99","name":"Import Test","date":"2026-09-01","minutes":61,"source_id":"tinyteam-v13:99991","cost_center_id":"10000000-0000-4000-8000-000000000001"}]')$q$,'P0001','Changed time blocked');
+insert into rental_imports(organization_id,year,filename,sha256,payload) values('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',2025,'private-search-marker.xlsx','test','{"rows":[]}');
+select assert_true((select count(*) from search_finance('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','private-search-marker',0))=1,'Owner global search sees private snapshot');
+set request.jwt.claims='{"sub":"44444444-4444-4444-8444-444444444444","aal":"aal1"}';
+select assert_true((select count(*) from search_finance('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','private-search-marker',0))=0,'Global search respects private RLS');
+select expect_error($q$select import_tinyteam_times('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','[]')$q$,'P0001','Viewer cannot import payroll');
+reset role;
+set request.jwt.claims='{"sub":"11111111-1111-4111-8111-111111111111","aal":"aal2"}';
+insert into platform_settlements(id,organization_id,platform,reference,period_start,period_end,gross_amount,commission,refunds,payout,cost_center_id) values('71000000-0000-4000-8000-000000000001','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','Holidu','HOLIDU-TEMPLATE-TEST','2026-10-01','2026-10-02',397.64,89.77,0,307.87,'10000000-0000-4000-8000-000000000001');
+insert into bank_transactions(id,organization_id,bank_account_id,booked_on,amount,source_reference) values('61000000-0000-4000-8000-000000000001','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','50000000-0000-4000-8000-000000000001','2026-10-02',307.87,'holidu-template-bank');
+-- New original with valid reviewed fields; no existing posting/matching.
+insert into documents(id,organization_id,original_filename,storage_path,sha256,mime_type,net_amount,vat_amount,gross_amount,vendor,invoice_number,invoice_date,review_status,upload_status) values('31000000-0000-4000-8000-000000000001','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','holidu-template.pdf','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/holidu-test.pdf',repeat('9',64),'application/pdf',75.44,14.33,89.77,'Holidu','HOLIDU-TEMPLATE-TEST','2026-10-01','pending','ready');
+update documents set service_date='2026-10-01',review_status='reviewed' where id='31000000-0000-4000-8000-000000000001';
+set role authenticated;
+insert into holidu_settlements(id,organization_id,platform_settlement_id,document_id,bank_transaction_id,cost_center_id,reference,date,guest_cents,commission_net_cents,commission_vat_cents,payout_cents,all_seven,commission_nineteen,bank_account,created_by) values('91000000-0000-4000-8000-000000000001','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','71000000-0000-4000-8000-000000000001','31000000-0000-4000-8000-000000000001','61000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001','HOLIDU-TEMPLATE-TEST','2026-10-01',39764,7544,1433,30787,true,true,'1800',auth.uid());
+select assert_true(book_holidu_batch('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',array['91000000-0000-4000-8000-000000000001'::uuid])=1,'Holidu books existing platform and matches bank');
+select assert_true((select status from platform_settlements where id='71000000-0000-4000-8000-000000000001')='reconciled','Existing platform reconciliation retained');
+select assert_true((select sum((l->>'debit_cents')::bigint-(l->>'credit_cents')::bigint) from holidu_journals j cross join lateral jsonb_array_elements(j.lines) l)=0,'Holidu journal balanced');
+select expect_error($q$select book_holidu_batch('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',array['91000000-0000-4000-8000-000000000001'::uuid])$q$,'P0001','Repeated booking blocked');
+reset role;
