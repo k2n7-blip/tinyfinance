@@ -1,3 +1,6 @@
+import HouseDashboard from "@/app/components/house-dashboard";
+import { permits } from "@/lib/permissions";
+import type { HouseCost } from "@/lib/house-dashboard";
 import { allRows } from "@/lib/data";
 import { platformReport } from "@/lib/platform-reporting";
 import { decimal } from "@/lib/money";
@@ -18,9 +21,12 @@ export default async function Dashboard({
   });
   if (error) databaseError(error);
   const activeDocuments = await allRows(a.client, "documents", a.org);
-  const platforms = platformReport(
-    await allRows(a.client, "platform_settlements", a.org),
-  );
+  const [platformRows, centers, costs] = await Promise.all([
+    allRows(a.client, "platform_settlements", a.org),
+    allRows(a.client, "cost_centers", a.org),
+    allRows(a.client, "house_costs", a.org),
+  ]);
+  const platforms = platformReport(platformRows);
   const { data: org } = await a.client
     .from("organizations")
     .select("name")
@@ -43,6 +49,18 @@ export default async function Dashboard({
           Du hast keine Berechtigung für den angeforderten Bereich.
         </p>
       )}
+      <HouseDashboard
+        centers={centers}
+        platforms={platformRows}
+        costs={costs as HouseCost[]}
+        today={new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Europe/Berlin",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(new Date())}
+        canEdit={permits(a.role, "write", a.privateAccess, a.payrollAccess)}
+      />
       <section className="hero-strip">
         <div>
           <span className="eyebrow">Alles an einem Ort</span>

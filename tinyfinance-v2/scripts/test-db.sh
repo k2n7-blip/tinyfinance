@@ -23,3 +23,4 @@ done
 docker exec -i "$test_container" psql -U postgres -v ON_ERROR_STOP=1 < tests/database/rls.sql
 docker exec -i "$test_container" psql -U postgres -v ON_ERROR_STOP=1 < tests/database/unified-features.sql
 
+docker exec -i "$test_container" psql -U postgres -v ON_ERROR_STOP=1 < tests/database/house-costs.sql
